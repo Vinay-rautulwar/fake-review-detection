@@ -1,0 +1,152 @@
+# Fake Review Detection - Model Training Configuration Scaffold
+# Version: 2.0.0
+# Description: Configuration schema and model placeholders for fake review classification
+
+project:
+  name: "fake-review-detection-v2"
+  seed: 42
+  deterministic: true
+
+dataset:
+  # Path is configurable via environment variable or notebook parameter
+  default_path: "data/reviews_dataset.csv"
+  
+  # Schema definition: 17 required columns
+  expected_columns:
+    - review_id
+    - reviewer_id
+    - product_id
+    - review_text
+    - rating
+    - verified_purchase
+    - review_date
+    - product_category
+    - product_avg_rating
+    - product_review_count
+    - product_price
+    - reviewer_review_count
+    - reviewer_avg_rating
+    - reviewer_verified_review_count
+    - reviewer_account_age_days
+    - days_since_previous_review
+    - label
+
+  # Column groupings
+  id_column: "review_id"
+  text_column: "review_text"
+  label_column: "label"
+  
+  categorical_metadata:
+    - verified_purchase
+    - product_category
+
+  numerical_metadata:
+    - rating
+    - product_avg_rating
+    - product_review_count
+    - product_price
+    - reviewer_review_count
+    - reviewer_avg_rating
+    - reviewer_verified_review_count
+    - reviewer_account_age_days
+    - days_since_previous_review
+
+  # Validation constraints
+  validation:
+    rating_range: [1.0, 5.0]
+    valid_labels: [0, 1]  # 0: Genuine, 1: Fake
+    max_duplicate_review_threshold: 0.05
+
+  # Train / Validation / Test split (Step 4 Reviewer-held-out + cluster-constrained)
+  split:
+    train_ratio: 0.70
+    val_ratio: 0.15
+    test_ratio: 0.15
+    strategy: "reviewer_held_out_cluster_constrained"
+    train_path: "data/splits/train.csv"
+    val_path: "data/splits/validation.csv"
+    test_path: "data/splits/test.csv"
+
+# Model Architecture Placeholders
+models:
+  # Model 1: Baseline TF-IDF + LightGBM
+  tfidf_lightgbm:
+    enabled: true
+    description: "TF-IDF n-gram feature extraction paired with LightGBM gradient boosting"
+    feature_extraction:
+      max_features: 10000
+      ngram_range: [1, 2]
+      sublinear_tf: true
+      min_df: 3
+    classifier:
+      objective: "binary"
+      boosting_type: "gbdt"
+      learning_rate: 0.05
+      num_leaves: 31
+      n_estimators: 300
+      class_weight: "balanced"
+      random_state: 42
+
+  # Model 2: Transformer Text-Only (DeBERTa-v3-base)
+  deberta_v3_base:
+    enabled: true
+    description: "Deep contextual transformer fine-tuned on raw review text"
+    pretrained_model_name: "microsoft/deberta-v3-base"
+    tokenizer:
+      max_length: 256
+      truncation: true
+      padding: "max_length"
+    training_args:
+      learning_rate: 2.0e-5
+      per_device_train_batch_size: 16
+      per_device_eval_batch_size: 32
+      num_train_epochs: 3
+      weight_decay: 0.01
+      warmup_ratio: 0.1
+      fp16: true
+      evaluation_strategy: "epoch"
+      save_strategy: "epoch"
+      load_best_model_at_end: true
+      metric_for_best_model: "f1"
+
+  # Model 3: Multimodal DeBERTa-v3-base + Tabular Metadata Fusion
+  deberta_v3_metadata_fusion:
+    enabled: true
+    description: "Multimodal fusion combining DeBERTa-v3 textual representations with tabular reviewer/product metadata"
+    text_backbone: "microsoft/deberta-v3-base"
+    tokenizer:
+      max_length: 256
+    tabular_encoder:
+      numeric_scaler: "standard"
+      categorical_encoding: "target_or_embedding"
+      dense_layer_dims: [128, 64]
+      dropout: 0.2
+    fusion_layer:
+      fusion_type: "concat"  # Options: concat, cross_attention, gated
+      hidden_dims: [256, 128]
+      dropout: 0.2
+      num_classes: 2
+    training_args:
+      text_lr: 2.0e-5
+      tabular_lr: 1.0e-3
+      per_device_batch_size: 16
+      num_train_epochs: 4
+      weight_decay: 0.01
+      fp16: true
+
+# Evaluation and Reporting
+evaluation:
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1
+    - roc_auc
+  average: "binary"
+  decision_threshold: 0.50
+
+# Output Directories
+artifacts:
+  base_dir: "training/artifacts"
+  checkpoints_dir: "training/artifacts/checkpoints"
+  metrics_dir: "training/artifacts/metrics"

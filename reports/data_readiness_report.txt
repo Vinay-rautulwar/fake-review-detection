@@ -1,0 +1,126 @@
+==============================================================================
+ FAKE REVIEW DETECTION - DATA READINESS REPORT (GATE 3)
+==============================================================================
+Report Date         : 2026-10-17 14:39:30
+Evaluation Stage    : Step 3 - Final Dataset Quality Gate
+Evaluated Dataset   : data/processed/fake_review_dataset_clean.csv
+Evaluated Rows      : 29,821 rows x 17 columns
+Final Decision      : READY FOR SPLITTING
+------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY & VERDICT
+------------------------------------------------------------------------------
+Status: APPROVED FOR NEXT PHASE (DATA SPLITTING & MODELING).
+
+All critical quality gates have passed successfully:
+  [PASS] 17 of 17 required columns present in exact schema order.
+  [PASS] 0 missing, null, or unparseable values across the entire dataset.
+  [PASS] 100% unique primary keys (review_id) with 0 duplicate records.
+  [PASS] 0 exact or normalized duplicate review texts.
+  [PASS] Target labels strictly standardized to 'fake' and 'genuine'.
+  [PASS] Ratings strictly valid within integer range [1, 5].
+  [PASS] Binary fields strictly valid (verified_purchase in {0, 1}).
+  [PASS] All 179 logically corrupted rows (verified > total reviews) quarantined.
+  [PASS] Review dates strictly standardized to ISO format YYYY-MM-DD.
+  [PASS] No target leakage detected across metadata features (|r| < 0.18).
+
+Verdict: READY FOR SPLITTING
+Action : data/final/fake_review_dataset_v1.csv created as the approved baseline.
+------------------------------------------------------------------------------
+2. DATASET LIFECYCLE & ROW ACCOUNTING
+------------------------------------------------------------------------------
+Original Raw Rows (data/raw/fake_review_dataset.csv)      : 30,000
+Quarantined Invalid Rows (data/quarantine/invalid_rows.csv) : 179 (0.60%)
+Quarantined Duplicate Rows (data/quarantine/duplicate_reviews.csv) : 0 (0.00%)
+Cleaned Valid Rows (data/processed/fake_review_dataset_clean.csv) : 29,821 (99.40%)
+Approved Baseline Rows (data/final/fake_review_dataset_v1.csv)    : 29,821 (99.40%)
+
+Quarantine Reasons Breakdown:
+  - reviewer_verified_review_count > reviewer_review_count : 179 rows
+    * Corrupted rows breakdown: 108 genuine (60.34%), 71 fake (39.66%)
+    * Perfectly preserves original ground truth class balance.
+    * Documented row-by-row in reports/cleaning_log.csv.
+------------------------------------------------------------------------------
+3. TARGET & FEATURE DISTRIBUTIONS
+------------------------------------------------------------------------------
+Class Distribution (Cleaned vs Raw):
+  - Raw Genuine   : 18,750 (62.50%) | Clean Genuine : 18,642 (62.51%)
+  - Raw Fake      : 11,250 (37.50%) | Clean Fake    : 11,179 (37.49%)
+  - Class Balance : Healthy 62.5% / 37.5% split (minority ratio = 0.600)
+
+Rating Distribution (Cleaned):
+  - 1 Star  :    321 rows ( 1.08%)
+  - 2 Stars :  2,573 rows ( 8.63%)
+  - 3 Stars :  9,145 rows (30.67%)
+  - 4 Stars : 11,483 rows (38.51%)
+  - 5 Stars :  6,299 rows (21.12%)
+
+Verified Purchase Distribution (Cleaned):
+  - Verified (1)   : 19,473 rows (65.30%) - 31.25% fake rate
+  - Unverified (0) : 10,348 rows (34.70%) - 49.25% fake rate
+------------------------------------------------------------------------------
+4. REVIEW QUALITY AUDIT & LINGUISTIC ARTIFACTS
+------------------------------------------------------------------------------
+A deep qualitative inspection of review texts reveals clear evidence of synthetic
+template-based generation. Removing exact duplicates does NOT make the text
+wholly natural. Key linguistic characteristics observed:
+
+A. Repetitive Structural Templates:
+   - Common Opening Templates:
+     * 'I spent time using this [product] in different situations...' (938 occurrences)
+     * 'I expected more from this [product] given the...' (651 occurrences)
+     * 'I ended up using this [product] more than I initially...' (595 occurrences)
+     * 'I was mostly interested in how the [attribute] would hold up...' (589 occurrences)
+   - Common Closing Templates:
+     * '...deciding how I felt about it.' (933 occurrences)
+     * '...more to me than the appearance.' (669 occurrences)
+     * '...ordinary use without any serious problems.' (371 occurrences)
+
+B. Slot-Filling Glitches:
+   - Generic templates are populated with product-specific nouns without adapting
+     grammatical number, creating noticeable agreement errors:
+     * 'the controls is convenient without being overcomplicated' (plural subject, singular verb)
+     * 'the buttons is convenient without being overcomplicated'
+     * 'the examples is weaker than I expected'
+
+C. Near-Duplicate Review Clusters (Threshold >= 0.90):
+   - Total Near-Duplicate Pairs  : 6,082
+   - Total Reviews Involved      : 3,536 (11.86% of dataset)
+   - Total Multi-Review Clusters : 1,189
+   - Cluster Purity Breakdown:
+     * Pure Fake Clusters        : 348 clusters (1,343 reviews)
+     * Pure Genuine Clusters     : 545 clusters (1,188 reviews)
+     * Mixed-Label Clusters      : 296 clusters (1,005 reviews)
+
+D. Critical Implication of Mixed-Label Clusters:
+   In 296 clusters, virtually identical template sentences (similarity >= 0.90)
+   are assigned conflicting labels ('fake' vs 'genuine'). For example:
+   Cluster CLUST_0024:
+     [RV-WUY4SP] (GENUINE): 'My first impression was the padding is neither a major strength nor a deal breaker. I used it during a normal weekday rather than just testing it once.'
+     [RV-DEFQW3] (FAKE)   : 'My first impression was the blade is neither a major strength nor a deal breaker. I used it during a normal weekday rather than just testing it once.'
+   This proves the synthetic generation process reused template scaffolds across
+   both classes. Random train/test splitting could cause data leakage if near-identical
+   templates appear in both train and test splits. Cluster-aware or stratified
+   splitting is strongly recommended.
+------------------------------------------------------------------------------
+5. REMAINING CONSISTENCY & DOMAIN OBSERVATIONS
+------------------------------------------------------------------------------
+1. Reviewer Account Age Days:
+   - reviewer_account_age_days is identical across all historical reviews from the same
+     author (std = 0.0). This represents a static account snapshot at data dump time.
+2. Platform Statistics vs Sample Row Counts:
+   - product_review_count (up to 12,680) and reviewer_review_count (up to 115) reflect
+     lifetime platform metrics rather than row counts in this 30k sample.
+3. Same-Day Review Disambiguation:
+   - When a reviewer posted multiple reviews on the same calendar day, days_since_previous_review
+     has minor sequence ties (36 occurrences) due to absence of sub-day timestamps.
+------------------------------------------------------------------------------
+6. FINAL APPROVAL & ARTIFACT CREATION
+------------------------------------------------------------------------------
+Quality Gate Verdict: READY FOR SPLITTING
+
+Approved Artifact Generated:
+  Location  : data/final/fake_review_dataset_v1.csv
+  Row Count : 29,821 rows
+  Col Count : 17 columns
+  Integrity : 100% verified against quality gate requirements.
+==============================================================================

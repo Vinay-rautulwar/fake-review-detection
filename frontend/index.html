@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fake Review Detection v2 - AI Analytics Dashboard</title>
+  <meta name="description" content="Production AI analytics dashboard for detecting deceptive and fraudulent product reviews with DeBERTa-v3 and LightGBM.">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%236366f1'/><path d='M30 50 L45 65 L70 35' stroke='white' stroke-width='10' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+</head>
+<body>
+
+  <!-- Application Header -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-logo" aria-hidden="true">FR</div>
+      <div class="brand-text">
+        <h1>Fake Review Detection <span class="version-tag">v2.0</span></h1>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs" role="tablist" aria-label="Main Navigation">
+      <button class="nav-tab-btn active" data-tab="overview" role="tab" aria-selected="true" id="tab-btn-overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        Overview
+      </button>
+      <button class="nav-tab-btn" data-tab="analyzer" role="tab" aria-selected="false" id="tab-btn-analyzer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        Review Analyzer
+      </button>
+      <button class="nav-tab-btn" data-tab="batch" role="tab" aria-selected="false" id="tab-btn-batch">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        Batch Scanner
+      </button>
+      <button class="nav-tab-btn" data-tab="evaluation" role="tab" aria-selected="false" id="tab-btn-evaluation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        Model Evaluation
+      </button>
+      <button class="nav-tab-btn" data-tab="history" role="tab" aria-selected="false" id="tab-btn-history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        History
+      </button>
+    </nav>
+
+    <!-- Header Status Indicators -->
+    <div class="header-status-area">
+      <!-- Database Status -->
+      <div id="db-status-pill" class="status-pill ready" title="MongoDB Connection">
+        <span class="indicator-dot"></span>
+        <span id="db-status-text">DB: Checking</span>
+      </div>
+
+      <!-- Active Model Status Badge (Requirement 8) -->
+      <div id="model-status-pill" class="status-pill training" title="Configured Model Status">
+        <span class="indicator-dot"></span>
+        <span id="model-status-text">Model: Checking</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="app-container">
+
+    <!-- Global Model Context Banner -->
+    <div id="model-context-banner" class="banner-alert info" style="display: none;">
+      <svg class="banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>
+      </svg>
+      <div class="banner-content">
+        <h4 id="banner-title">Model State Notification</h4>
+        <p id="banner-message">Checking backend status...</p>
+      </div>
+      <button id="banner-action-btn" class="banner-action-btn" style="display: none;">Switch to Baseline</button>
+    </div>
+
+    <!-- =========================================================================
+         TAB 1: OVERVIEW DASHBOARD
+         ========================================================================= -->
+    <section id="pane-overview" class="tab-pane active" role="tabpanel">
+      <!-- 4 Overview Metric Cards (Requirement 3) -->
+      <div class="stats-grid">
+        <div class="stat-card" style="--card-accent: var(--indigo-500);">
+          <div class="stat-header">
+            <span class="stat-title">Total Reviews Analyzed</span>
+            <div class="stat-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            </div>
+          </div>
+          <div class="stat-value" id="card-total-reviews">0</div>
+          <div class="stat-subtitle">Persistent MongoDB prediction logs</div>
+        </div>
+
+        <div class="stat-card" style="--card-accent: var(--rose-500);">
+          <div class="stat-header">
+            <span class="stat-title">Predicted Fake Reviews</span>
+            <div class="stat-icon" style="color: var(--rose-400);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </div>
+          </div>
+          <div class="stat-value" id="card-fake-reviews" style="color: var(--rose-400);">0</div>
+          <div class="stat-subtitle" id="card-fake-pct-subtitle">0.0% of user submissions</div>
+        </div>
+
+        <div class="stat-card" style="--card-accent: var(--emerald-500);">
+          <div class="stat-header">
+            <span class="stat-title">Genuine Reviews</span>
+            <div class="stat-icon" style="color: var(--emerald-400);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            </div>
+          </div>
+          <div class="stat-value" id="card-genuine-reviews" style="color: var(--emerald-400);">0</div>
+          <div class="stat-subtitle" id="card-genuine-pct-subtitle">0.0% of user submissions</div>
+        </div>
+
+        <div class="stat-card" style="--card-accent: var(--amber-500);">
+          <div class="stat-header">
+            <span class="stat-title">Active Model Lifecycle</span>
+            <div class="stat-icon" style="color: var(--amber-400);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </div>
+          </div>
+          <div class="stat-value" id="card-active-model-name" style="font-size: 1.35rem; margin-top: 0.35rem;">DeBERTa-v3</div>
+          <div class="stat-subtitle" id="card-model-status-sub">Training in Colab</div>
+        </div>
+      </div>
+
+      <!-- Dashboard Detail Columns -->
+      <div class="dashboard-columns">
+        <!-- Model Specification Panel -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+              Configured Model Architecture & Runtime
+            </h3>
+            <span class="panel-badge" id="badge-model-input">Text + Tabular</span>
+          </div>
+
+          <div class="model-spec-list">
+            <div class="spec-item">
+              <span class="spec-label">Model Identifier</span>
+              <span class="spec-value" id="spec-model-name">deberta_fusion</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Architecture</span>
+              <span class="spec-value" id="spec-model-arch">DeBERTa-v3 Contextual Embeddings + Dense Fusion</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Input Modality</span>
+              <span class="spec-value" id="spec-model-modality">Review Text + Reviewer/Product Metadata</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Artifact Directory</span>
+              <span class="spec-value" id="spec-model-path">training/artifacts/deberta_fusion/</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Memory Load Status</span>
+              <span class="spec-value" id="spec-model-loaded">Not Loaded</span>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Backend Lifecycle Status</span>
+              <span class="spec-value" id="spec-model-status-desc" style="color: var(--amber-400);">Training pending in Google Colab</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Class Distribution & Submission Breakdown -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+              Prediction Class Balance
+            </h3>
+            <span class="panel-badge">MongoDB Live</span>
+          </div>
+
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+            Distribution of classified reviews submitted through this application:
+          </p>
+
+          <div class="distribution-container">
+            <div class="distribution-bar">
+              <div id="bar-fake" class="bar-segment fake" style="width: 50%;"></div>
+              <div id="bar-genuine" class="bar-segment genuine" style="width: 50%;"></div>
+            </div>
+            <div class="distribution-legend">
+              <div class="legend-item">
+                <span class="legend-dot fake"></span>
+                <span>Fake: <strong id="legend-fake-val">0</strong></span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot genuine"></span>
+                <span>Genuine: <strong id="legend-genuine-val">0</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle);">
+            <div style="display: flex; gap: 0.75rem;">
+              <button class="btn-primary" onclick="window.app.switchTab('analyzer')" style="padding: 0.65rem 1rem; font-size: 0.85rem;">
+                Open Review Analyzer
+              </button>
+              <button class="btn-secondary" onclick="window.app.switchTab('evaluation')" style="padding: 0.65rem 1rem; font-size: 0.85rem;">
+                View Benchmarks
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 2: REVIEW ANALYZER (Requirement 3)
+         ========================================================================= -->
+    <section id="pane-analyzer" class="tab-pane" role="tabpanel">
+      <div class="analyzer-layout">
+        <!-- Input Form Column -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+              Input Review for Inspection
+            </h3>
+            <span class="panel-badge">Real-Time Inference</span>
+          </div>
+
+          <!-- Quick Fill Sample Buttons -->
+          <div class="sample-pills">
+            <span style="font-size: 0.75rem; color: var(--text-muted); align-self: center; margin-right: 0.25rem;">Samples:</span>
+            <button class="sample-btn" data-sample="suspicious-promo">Suspicious 5-Star Promo</button>
+            <button class="sample-btn" data-sample="authentic-critique">Authentic Balanced Review</button>
+            <button class="sample-btn" data-sample="short-superlative">Short Superlative</button>
+          </div>
+
+          <form id="review-analyzer-form">
+            <div class="form-group">
+              <div class="form-label">
+                <label for="review-text-input">Review Content <span style="color: var(--rose-400);">*</span></label>
+                <span id="review-char-count" class="char-counter">0 / min 3 chars</span>
+              </div>
+              <textarea
+                id="review-text-input"
+                class="review-textarea"
+                placeholder="Paste or write the customer review here (minimum 3 characters)..."
+                required
+              ></textarea>
+            </div>
+
+            <!-- Optional Metadata Accordion -->
+            <button type="button" id="meta-accordion-btn" class="accordion-toggle" aria-expanded="false">
+              <span>Optional Reviewer & Product Metadata (Tabular Features)</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="accordion-chevron"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+
+            <div id="meta-accordion-content" class="accordion-content">
+              <div class="meta-field">
+                <label for="meta-rating">Star Rating (1.0 to 5.0)</label>
+                <input type="number" id="meta-rating" class="meta-input" min="1.0" max="5.0" step="0.5" placeholder="e.g. 5.0">
+              </div>
+
+              <div class="meta-field">
+                <label for="meta-verified">Verified Purchase</label>
+                <select id="meta-verified" class="meta-input">
+                  <option value="">Not Specified</option>
+                  <option value="true">Yes (Verified Buyer)</option>
+                  <option value="false">No (Unverified Reviewer)</option>
+                </select>
+              </div>
+
+              <div class="meta-field">
+                <label for="meta-category">Product Category</label>
+                <input type="text" id="meta-category" class="meta-input" placeholder="e.g. Electronics, Home">
+              </div>
+
+              <div class="meta-field">
+                <label for="meta-price">Product Price ($)</label>
+                <input type="number" id="meta-price" class="meta-input" min="0" step="0.01" placeholder="e.g. 49.99">
+              </div>
+
+              <div class="meta-field">
+                <label for="meta-reviewer-count">Reviewer Total Reviews</label>
+                <input type="number" id="meta-reviewer-count" class="meta-input" min="0" placeholder="e.g. 1">
+              </div>
+
+              <div class="meta-field">
+                <label for="meta-days-prev">Days Since Last Review</label>
+                <input type="number" id="meta-days-prev" class="meta-input" min="0" step="0.1" placeholder="e.g. 0.5">
+              </div>
+            </div>
+
+            <div class="action-row">
+              <button type="submit" id="submit-analysis-btn" class="btn-primary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                <span>Classify Review</span>
+              </button>
+              <button type="button" id="clear-input-btn" class="btn-secondary">Clear</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Result Card Column -->
+        <div class="card-panel result-panel" id="result-panel-box">
+          <div class="panel-header">
+            <h3 class="panel-title">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              Classification Result
+            </h3>
+            <span class="panel-badge" id="result-model-badge">Awaiting Input</span>
+          </div>
+
+          <!-- Empty State -->
+          <div id="result-empty-state" class="result-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <h4 style="font-size: 1.05rem; margin-bottom: 0.35rem; color: var(--text-primary);">No Review Analyzed Yet</h4>
+            <p style="font-size: 0.85rem; max-width: 320px;">
+              Enter review text on the left and click "Classify Review" to run inference.
+            </p>
+          </div>
+
+          <!-- Loading State -->
+          <div id="result-loading-state" class="result-placeholder" style="display: none;">
+            <div class="spinner" style="width: 38px; height: 38px; border-width: 3px; margin-bottom: 1rem;"></div>
+            <h4 style="font-size: 1.05rem; margin-bottom: 0.35rem;">Running Model Inference...</h4>
+            <p style="font-size: 0.85rem; color: var(--text-secondary);">Extracting features and evaluating authenticity</p>
+          </div>
+
+          <!-- Active Result Container -->
+          <div id="result-content" style="display: none;">
+            <!-- Simulated Demo Watermark (Requirement 7) -->
+            <div id="demo-watermark-pill" class="simulation-watermark" style="display: none;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              <span>[SIMULATED DEMO - NOT REAL MODEL OUTPUT] Backend model is training in Colab</span>
+            </div>
+
+            <!-- Verdict Banner -->
+            <div id="verdict-banner" class="verdict-banner fake">
+              <div class="verdict-icon">
+                <svg id="verdict-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"></path></svg>
+              </div>
+              <div class="verdict-text">
+                <h3 id="verdict-title">SUSPICIOUS / FAKE REVIEW</h3>
+                <p id="verdict-desc">High probability of synthetic, promotional, or deceptive intent.</p>
+              </div>
+            </div>
+
+            <!-- Confidence and Fake Probability Gauges -->
+            <div class="gauges-row">
+              <div class="gauge-box">
+                <div class="gauge-label">Confidence Score</div>
+                <div class="gauge-val" id="gauge-confidence-val">--</div>
+                <div class="meter-track">
+                  <div id="meter-confidence-fill" class="meter-fill indigo" style="width: 0%;"></div>
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;" id="gauge-genuine-label">Genuine: --</div>
+              </div>
+
+              <div class="gauge-box">
+                <div class="gauge-label">Fake Probability</div>
+                <div class="gauge-val" id="gauge-fake-val" style="color: var(--rose-400);">--</div>
+                <div class="meter-track">
+                  <div id="meter-fake-fill" class="meter-fill rose" style="width: 0%;"></div>
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">(Model estimate, not certainty)</div>
+              </div>
+            </div>
+
+            <!-- Model Info Tag -->
+            <div style="background: rgba(13, 21, 39, 0.4); border-radius: var(--radius-sm); padding: 0.75rem 1rem; border: 1px solid var(--border-subtle); font-size: 0.8rem; margin-top: auto;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span style="color: var(--text-muted);">Inference Model:</span>
+                <span id="result-model-name" class="font-mono" style="color: var(--text-primary); font-weight: 600;">tfidf_lightgbm</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Timestamp:</span>
+                <span id="result-timestamp" class="font-mono" style="color: var(--text-secondary);">2026-10-29 21:50 UTC</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error / Model Unavailable Fallback State -->
+          <div id="result-error-state" class="result-placeholder" style="display: none; border-color: var(--rose-border);">
+            <svg style="color: var(--rose-400);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <h4 id="error-state-title" style="color: var(--rose-400); margin-bottom: 0.5rem;">Model Unavailable (HTTP 503)</h4>
+            <p id="error-state-message" style="font-size: 0.85rem; margin-bottom: 1.25rem; color: var(--text-secondary); max-width: 360px;">
+              The active model is currently training in Google Colab.
+            </p>
+            <button id="try-demo-mode-btn" class="btn-secondary" style="font-size: 0.82rem; border-color: var(--amber-border); color: var(--amber-400);">
+              Preview in Simulated Demo Mode
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 3: BATCH REVIEW SCANNER
+         ========================================================================= -->
+    <section id="pane-batch" class="tab-pane" role="tabpanel">
+      <div class="card-panel" style="margin-bottom: 1.5rem;">
+        <div class="panel-header">
+          <h3 class="panel-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            Batch CSV Review Scanner
+          </h3>
+          <span class="panel-badge">Up to 500 Reviews</span>
+        </div>
+
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+          Upload a CSV containing customer reviews for automated batch classification. The file must include a <code class="font-mono">review_text</code> column header. Optional columns: <code class="font-mono">rating</code>, <code class="font-mono">verified_purchase</code>.
+        </p>
+
+        <!-- Drag & Drop Zone -->
+        <div id="csv-dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <div class="dropzone-title">Click to upload or drag & drop CSV file</div>
+          <div class="dropzone-sub">Supports .csv files up to 5 MB (maximum 500 reviews per batch)</div>
+          <input type="file" id="batch-file-input" accept=".csv" style="display: none;">
+        </div>
+
+        <!-- Batch Processing Banner -->
+        <div id="batch-progress-box" style="display: none; margin-top: 1.5rem; padding: 1.25rem; background: var(--bg-input); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span id="batch-file-name" class="font-mono" style="font-size: 0.85rem; font-weight: 600;">upload.csv</span>
+            <span id="batch-progress-status" class="status-pill training">Processing</span>
+          </div>
+          <div class="meter-track">
+            <div id="batch-meter-fill" class="meter-fill indigo" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch Results Panel -->
+      <div id="batch-results-panel" class="card-panel" style="display: none;">
+        <div class="panel-header">
+          <h3 class="panel-title">Batch Classification Results</h3>
+          <div style="display: flex; gap: 0.5rem;">
+            <span id="batch-summary-badge" class="panel-badge">0 / 0 Classified</span>
+            <button id="download-batch-csv-btn" class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;">
+              Export Results CSV
+            </button>
+          </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table class="custom-table" id="batch-results-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">#</th>
+                <th>Review Snippet</th>
+                <th style="width: 110px;">Verdict</th>
+                <th style="width: 130px;">Fake Probability</th>
+                <th style="width: 110px;">Confidence</th>
+                <th style="width: 90px;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="batch-results-tbody">
+              <!-- Populated by app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 4: MODEL EVALUATION & BENCHMARKS (Requirement 3 & 7)
+         ========================================================================= -->
+    <section id="pane-evaluation" class="tab-pane" role="tabpanel">
+      <!-- Evaluation Navigation -->
+      <div class="eval-tabs-nav">
+        <button class="eval-tab-btn active" data-eval="baseline">Baseline (TF-IDF + LightGBM)</button>
+        <button class="eval-tab-btn" data-eval="deberta">DeBERTa-v3-base (Trained & Active)</button>
+        <button class="eval-tab-btn" data-eval="comparison">Model Comparison Framework</button>
+        <button class="eval-tab-btn" data-eval="colab-sync">Colab Sync & Artifacts Guide</button>
+      </div>
+
+      <!-- Baseline Evaluation View -->
+      <div id="eval-view-baseline" class="eval-content-view">
+        <!-- Threshold Switcher -->
+        <div class="threshold-switch-bar">
+          <span style="color: var(--text-secondary); font-weight: 500;">Classification Threshold:</span>
+          <button class="switch-pill active" data-threshold="0.5">Default (0.50)</button>
+          <button class="switch-pill" data-threshold="0.25">Validation-Optimal (0.25)</button>
+          <span style="margin-left: auto; color: var(--text-muted); font-size: 0.75rem;">
+            Evaluated on strictly held-out <code class="font-mono">validation.csv</code> (4,472 reviews)
+          </span>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="metrics-summary-grid">
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">ROC-AUC Score</div>
+            <div class="metric-pill-val" id="metric-roc-auc">0.6691</div>
+          </div>
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">PR-AUC (Avg Precision)</div>
+            <div class="metric-pill-val" id="metric-pr-auc">0.6118</div>
+          </div>
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">Precision (Fake)</div>
+            <div class="metric-pill-val" id="metric-precision">0.4893</div>
+          </div>
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">Recall (Fake)</div>
+            <div class="metric-pill-val" id="metric-recall">0.5340</div>
+          </div>
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">F1-Score (Fake)</div>
+            <div class="metric-pill-val" id="metric-f1">0.5107</div>
+          </div>
+        </div>
+
+        <!-- Confusion Matrix & Diagnostic Grid -->
+        <div class="dashboard-columns">
+          <!-- 2x2 Confusion Matrix -->
+          <div class="card-panel">
+            <div class="panel-header">
+              <h3 class="panel-title">2x2 Confusion Matrix (Step 5 Validation)</h3>
+              <span class="panel-badge" id="cm-threshold-badge">Threshold = 0.50</span>
+            </div>
+
+            <div class="confusion-matrix-wrapper">
+              <div style="display: flex; gap: 1rem; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                <span style="width: 140px; text-align: center;">Predicted Genuine (0)</span>
+                <span style="width: 140px; text-align: center;">Predicted Fake (1)</span>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.72rem; color: var(--text-muted); text-align: center;">
+                  Actual Genuine
+                </span>
+                <div style="display: flex; gap: 6px;">
+                  <div class="cm-cell tn">
+                    <div class="cm-cell-count" id="cm-tn-count">1,862</div>
+                    <div class="cm-cell-label">True Negative (TN)</div>
+                  </div>
+                  <div class="cm-cell fp">
+                    <div class="cm-cell-count" id="cm-fp-count">934</div>
+                    <div class="cm-cell-label">False Positive (FP)</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 6px;">
+                <span style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.72rem; color: var(--text-muted); text-align: center;">
+                  Actual Fake
+                </span>
+                <div style="display: flex; gap: 6px;">
+                  <div class="cm-cell fn">
+                    <div class="cm-cell-count" id="cm-fn-count">781</div>
+                    <div class="cm-cell-label">False Negative (FN)</div>
+                  </div>
+                  <div class="cm-cell tp">
+                    <div class="cm-cell-count" id="cm-tp-count">895</div>
+                    <div class="cm-cell-label">True Positive (TP)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p style="font-size: 0.78rem; color: var(--text-muted); text-align: center; margin-top: 1rem;">
+              Total validation set size: 4,472 reviews (2,796 Genuine + 1,676 Fake). Zero reviewer or template leakage.
+            </p>
+          </div>
+
+          <!-- Diagnostic Explanations -->
+          <div class="card-panel">
+            <div class="panel-header">
+              <h3 class="panel-title">Diagnostic Analysis & Observations</h3>
+              <span class="panel-badge">Step 5 Report</span>
+            </div>
+
+            <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; display: flex; flex-direction: column; gap: 0.85rem;">
+              <p>
+                <strong style="color: var(--text-primary);">Leakage-Protected Benchmark:</strong>
+                The baseline achieves an ROC-AUC of <strong>0.6691</strong> and PR-AUC of <strong>0.6118</strong>. Because data splits strictly isolated reviewer IDs and template clusters, the model cannot cheat by memorizing author styles.
+              </p>
+              <p>
+                <strong style="color: var(--text-primary);">Threshold Tradeoff:</strong>
+                At threshold 0.50, F1 is <strong>0.5107</strong> with balanced precision and recall. Tuning to threshold 0.25 surges recall to <strong>0.9433</strong> (catching 94% of fake reviews), but precision drops to 0.4259 with 2,131 false alarms.
+              </p>
+              <p>
+                <strong style="color: var(--text-primary);">Synthetic Template Ceiling:</strong>
+                Audits revealed 296 template clusters with mixed labels (near-identical phrases labeled both fake and genuine). Purely text-based bag-of-words cannot separate these without external tabular signals.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DeBERTa-v3 View (Verified Test-Set Benchmarks) -->
+      <div id="eval-view-deberta" class="eval-content-view" style="display: none;">
+        <div class="banner-alert ready" style="margin-bottom: 1.5rem; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--emerald-border);">
+          <svg class="banner-icon" viewBox="0 0 24 24" fill="none" stroke="var(--emerald-400)" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          <div class="banner-content">
+            <h4 style="color: var(--emerald-400);">DeBERTa-v3 Fine-Tuning Complete & Loaded Locally (FP32)</h4>
+            <p style="color: var(--text-secondary);">
+              The transformer model (<code class="font-mono">microsoft/deberta-v3-base</code>) has been fine-tuned, extracted into <code class="font-mono">backend/models/deberta_fp32_final/</code>, and is serving live inferences. Below are the verified test-set metrics evaluated on held-out test data.
+            </p>
+          </div>
+        </div>
+
+        <!-- Verified Test Metrics Grid -->
+        <div class="metrics-summary-grid" style="margin-bottom: 1.5rem;">
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">ROC-AUC Score</div>
+            <div class="metric-pill-val" style="color: var(--cyan-400);">0.7152</div>
+          </div>
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">PR-AUC (Avg Precision)</div>
+            <div class="metric-pill-val" style="color: var(--cyan-400);">0.6639</div>
+          </div>
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">Precision (Fake)</div>
+            <div class="metric-pill-val" style="color: var(--emerald-400);">0.8674</div>
+          </div>
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">Recall (Fake)</div>
+            <div class="metric-pill-val" style="color: var(--amber-400);">0.2809</div>
+          </div>
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">F1-Score (Fake)</div>
+            <div class="metric-pill-val" style="color: var(--indigo-400);">0.4243</div>
+          </div>
+        </div>
+
+        <div class="dashboard-columns">
+          <!-- Architecture Specifications -->
+          <div class="card-panel">
+            <div class="panel-header">
+              <h3 class="panel-title">Model Specifications & Hyperparameters</h3>
+              <span class="panel-badge" style="color: var(--emerald-400); border-color: var(--emerald-border);">FP32 Active</span>
+            </div>
+
+            <div class="model-spec-list">
+              <div class="spec-item">
+                <span class="spec-label">Pretrained Backbone</span>
+                <span class="spec-value">microsoft/deberta-v3-base (86M params)</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Task & Mapping</span>
+                <span class="spec-value">Binary Text Classification (0 = genuine, 1 = fake)</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Input Modality</span>
+                <span class="spec-value">Review Text Only (Raw text, max 256 tokens)</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Fine-Tuning Precision</span>
+                <span class="spec-value">FP32 (Full Precision)</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Local Model Directory</span>
+                <span class="spec-value font-mono">backend/models/deberta_fp32_final/</span>
+              </div>
+              <div class="spec-item">
+                <span class="spec-label">Inference Mode</span>
+                <span class="spec-value">CPU by default (torch.inference_mode), CUDA optional</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dataset Scope & Disclaimer -->
+          <div class="card-panel">
+            <div class="panel-header">
+              <h3 class="panel-title">Scope & Validation Transparency</h3>
+              <span class="panel-badge">Verified Test Set</span>
+            </div>
+
+            <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; display: flex; flex-direction: column; gap: 0.85rem;">
+              <p>
+                <strong style="color: var(--text-primary);">High Precision Text Classifier:</strong>
+                DeBERTa-v3 achieves <strong>86.74% precision</strong> at the default threshold, meaning when it flags a review as deceptive, it is correct in 86.7% of instances.
+              </p>
+              <p>
+                <strong style="color: var(--text-primary);">Text-Only Modality Constraint:</strong>
+                This is a <em>strictly text-only model</em>. It processes review body text and does not directly incorporate tabular metadata (star rating, verified purchase status, reviewer history, or pricing).
+              </p>
+              <p style="background: rgba(245, 158, 11, 0.08); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--amber-border); font-size: 0.8rem; color: var(--amber-300);">
+                <strong>Transparency Disclaimer:</strong> These metrics are from the current experimental dataset only. They reflect leakage-protected evaluation and do not claim production-grade accuracy or guaranteed real-world performance.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comparative Framework View -->
+      <div id="eval-view-comparison" class="eval-content-view" style="display: none;">
+        <div class="card-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Model Comparison: Baseline vs DeBERTa-v3</h3>
+            <span class="panel-badge">Verified Benchmark Matrix</span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Metric / Dimension</th>
+                  <th>TF-IDF + LightGBM (Step 5)</th>
+                  <th>DeBERTa-v3-base (Step 6)</th>
+                  <th>Multimodal Fusion (Step 7)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>ROC-AUC Score</strong></td>
+                  <td class="font-mono">0.6691</td>
+                  <td class="font-mono" style="color: var(--cyan-400); font-weight: 600;">0.7152</td>
+                  <td class="font-mono" style="color: var(--text-muted);">Scaffolded</td>
+                </tr>
+                <tr>
+                  <td><strong>PR-AUC Score</strong></td>
+                  <td class="font-mono">0.6118</td>
+                  <td class="font-mono" style="color: var(--cyan-400); font-weight: 600;">0.6639</td>
+                  <td class="font-mono" style="color: var(--text-muted);">Scaffolded</td>
+                </tr>
+                <tr>
+                  <td><strong>Precision (0.50 Threshold)</strong></td>
+                  <td class="font-mono">0.4893</td>
+                  <td class="font-mono" style="color: var(--emerald-400); font-weight: 600;">0.8674</td>
+                  <td class="font-mono" style="color: var(--text-muted);">Scaffolded</td>
+                </tr>
+                <tr>
+                  <td><strong>Recall (0.50 Threshold)</strong></td>
+                  <td class="font-mono">0.5340</td>
+                  <td class="font-mono" style="color: var(--amber-400); font-weight: 600;">0.2809</td>
+                  <td class="font-mono" style="color: var(--text-muted);">Scaffolded</td>
+                </tr>
+                <tr>
+                  <td><strong>F1-Score (0.50 Threshold)</strong></td>
+                  <td class="font-mono">0.5107</td>
+                  <td class="font-mono" style="color: var(--indigo-400); font-weight: 600;">0.4243</td>
+                  <td class="font-mono" style="color: var(--text-muted);">Scaffolded</td>
+                </tr>
+                <tr>
+                  <td><strong>Input Features</strong></td>
+                  <td>Word N-Grams (1,2)</td>
+                  <td>256 Token Contextual Vectors (Text-Only)</td>
+                  <td>DeBERTa + 6 Tabular Indicators</td>
+                </tr>
+                <tr>
+                  <td><strong>Artifact Status</strong></td>
+                  <td><span class="table-badge genuine">Ready (On Disk)</span></td>
+                  <td><span class="table-badge genuine" style="background: rgba(16, 185, 129, 0.15); color: var(--emerald-400); border-color: var(--emerald-border);">Loaded Locally (FP32)</span></td>
+                  <td><span class="table-badge fake" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border-color: var(--border-subtle);">Planned</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Colab Sync Guide View (Requirement 9) -->
+      <div id="eval-view-colab-sync" class="eval-content-view" style="display: none;">
+        <div class="card-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">How to Sync Colab Checkpoints into Backend (Requirement 9)</h3>
+            <span class="panel-badge">Step-by-Step Walkthrough</span>
+          </div>
+
+          <div style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.7; display: flex; flex-direction: column; gap: 1rem;">
+            <p>
+              Once your DeBERTa-v3 training notebook (<code class="font-mono">training/notebooks/train_deberta.ipynb</code>) finishes in Google Colab, copy the saved files into the local artifacts folder:
+            </p>
+            <div style="background: var(--bg-input); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--cyan-400);">
+              fake-review-detection-v2/training/artifacts/deberta_text/<br>
+              ├── config.json<br>
+              ├── model.safetensors (or pytorch_model.bin)<br>
+              ├── tokenizer.json<br>
+              ├── tokenizer_config.json<br>
+              ├── special_tokens_map.json<br>
+              └── validation_metrics.json
+            </div>
+            <p>
+              The backend <code class="font-mono">ModelService</code> is already programmed to detect these files on startup or reload. Once placed, restart the backend server or switch <code class="font-mono">MODEL_TYPE=deberta_text</code> in <code class="font-mono">.env</code> to immediately serve live transformer inferences!
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 5: ANALYSIS HISTORY (Requirement 3 & 4)
+         ========================================================================= -->
+    <section id="pane-history" class="tab-pane" role="tabpanel">
+      <div class="card-panel">
+        <div class="panel-header">
+          <h3 class="panel-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            Historical Prediction Audit Log
+          </h3>
+          <span class="panel-badge" id="history-total-badge">0 Records Stored</span>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="table-controls">
+          <div class="filter-group">
+            <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 0.25rem;">Filter by Class:</span>
+            <button class="filter-btn active" data-class="all">All</button>
+            <button class="filter-btn" data-class="fake">Fake Only</button>
+            <button class="filter-btn" data-class="genuine">Genuine Only</button>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button id="refresh-history-btn" class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- History Table -->
+        <div style="overflow-x: auto;">
+          <table class="custom-table" id="history-table">
+            <thead>
+              <tr>
+                <th style="width: 130px;">ID</th>
+                <th>Review Snippet</th>
+                <th style="width: 100px;">Verdict</th>
+                <th style="width: 110px;">Fake Prob</th>
+                <th style="width: 100px;">Confidence</th>
+                <th style="width: 140px;">Model</th>
+                <th style="width: 160px;">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody">
+              <!-- Populated by app.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty State -->
+        <div id="history-empty-state" class="result-placeholder" style="margin-top: 1.5rem; display: none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          <h4 style="font-size: 1.05rem; margin-bottom: 0.35rem;">No History Records Found</h4>
+          <p style="font-size: 0.85rem; max-width: 320px;">
+            Submitted review classifications are stored persistently in MongoDB and will appear here.
+          </p>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="table-pagination">
+          <span id="pagination-info" style="font-size: 0.8rem; color: var(--text-muted);">Page 1 of 1</span>
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="prev-page-btn" class="pagination-btn" disabled>Previous</button>
+            <button id="next-page-btn" class="pagination-btn" disabled>Next</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Prediction Detail Modal -->
+  <div id="prediction-detail-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <button id="close-modal-btn" class="modal-close-btn" aria-label="Close Modal">&times;</button>
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <span id="modal-badge" class="table-badge fake">Fake</span>
+        <h3 id="modal-title" style="font-size: 1.15rem;">Prediction Inspection</h3>
+      </div>
+
+      <div style="margin-bottom: 1.25rem;">
+        <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Full Review Text</label>
+        <div id="modal-review-text" style="background: var(--bg-input); padding: 1rem; border-radius: var(--radius-md); font-size: 0.9rem; line-height: 1.6; border: 1px solid var(--border-subtle); margin-top: 0.35rem; max-height: 200px; overflow-y: auto;">
+        </div>
+      </div>
+
+      <div class="model-spec-list" style="margin-bottom: 1.5rem;">
+        <div class="spec-item">
+          <span class="spec-label">Record ID (MongoDB ObjectId)</span>
+          <span class="spec-value" id="modal-id">671...</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-label">Fake Probability</span>
+          <span class="spec-value" id="modal-fake-prob">0.8500</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-label">Confidence Score</span>
+          <span class="spec-value" id="modal-confidence">0.8500</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-label">Model Used</span>
+          <span class="spec-value" id="modal-model-name">tfidf_lightgbm</span>
+        </div>
+        <div class="spec-item">
+          <span class="spec-label">Created At (UTC)</span>
+          <span class="spec-value" id="modal-timestamp">2026-10-29 21:50:00</span>
+        </div>
+      </div>
+
+      <div id="modal-metadata-section" style="display: none;">
+        <label style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Provided Metadata</label>
+        <pre id="modal-metadata-json" style="background: var(--bg-input); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.78rem; border: 1px solid var(--border-subtle); margin-top: 0.35rem;"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "fake-review-detection-express-gateway",
+  "version": "2.0.0",
+  "description": "Express.js integration router to forward review classification requests to Python DeBERTa ML service",
+  "main": "review_router.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

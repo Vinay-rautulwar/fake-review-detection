@@ -1,0 +1,81 @@
+==============================================================================
+ FAKE REVIEW DETECTION - LEAKAGE-AWARE SPLIT REPORT (STEP 4)
+==============================================================================
+Execution Date      : 2026-10-17 14:48:52
+Source Dataset      : data/final/fake_review_dataset_v1.csv
+Random Seed         : 42
+Splitting Strategy  : Reviewer-held-out + Near-duplicate cluster constrained
+------------------------------------------------------------------------------
+1. SPLIT PROPORTIONS & ROW COUNTS
+------------------------------------------------------------------------------
+Total Approved Rows : 29,821 (100.00%)
+Train Set           : 20,875 rows (70.0%)  [Target: 70.00%]
+Validation Set      : 4,472 rows (15.0%)  [Target: 15.00%]
+Test Set            : 4,474 rows (15.0%)  [Target: 15.00%]
+Row Sum Check       : 29,821 / 29,821 (Exact match)
+------------------------------------------------------------------------------
+2. CLASS DISTRIBUTIONS (FAKE VS GENUINE)
+------------------------------------------------------------------------------
+Train Set      : Genuine = 13,049 (62.51%) | Fake = 7,826 (37.49%)
+Validation Set : Genuine = 2,796 (62.52%) | Fake = 1,676 (37.48%)
+Test Set       : Genuine = 2,797 (62.52%) | Fake = 1,677 (37.48%)
+
+Observation: The class balance is virtually identical across all three splits (~37.48% fake),
+preventing distribution shift between train, validation, and test partitions.
+------------------------------------------------------------------------------
+3. LEAKAGE AUDIT & OVERLAP CHECKS
+------------------------------------------------------------------------------
+A. Reviewer ID Overlap (Primary Constraint):
+   - Train & Validation Overlap : 0 reviewers (STRICT ZERO)
+   - Train & Test Overlap       : 0 reviewers (STRICT ZERO)
+   - Validation & Test Overlap  : 0 reviewers (STRICT ZERO)
+   Status: PASSED. Every reviewer appears in exactly one split.
+
+B. Near-Duplicate Review Cluster Overlap (Secondary Constraint):
+   - Near-Duplicate Clusters Loaded : 1,189
+   - Train & Validation Overlap     : 0 clusters (STRICT ZERO)
+   - Train & Test Overlap           : 0 clusters (STRICT ZERO)
+   - Validation & Test Overlap      : 0 clusters (STRICT ZERO)
+   Status: PASSED. No near-duplicate template cluster crosses split boundaries.
+
+C. Exact Review Text Overlap:
+   - Train & Validation Overlap : 0 texts (STRICT ZERO)
+   - Train & Test Overlap       : 0 texts (STRICT ZERO)
+   - Validation & Test Overlap  : 0 texts (STRICT ZERO)
+   Status: PASSED. Zero exact text leakage.
+
+D. Product ID Overlap (Expected in Reviewer-Held-Out Setting):
+   - Total Unique Products      : 5,496
+   - Train & Validation Overlap : 2,936 products
+   - Train & Test Overlap       : 2,960 products
+   - Validation & Test Overlap  : 1,658 products
+   Important Note: This experiment evaluates generalization to UNSEEN REVIEWERS on
+   KNOWN products. It does NOT evaluate generalization to completely unseen products.
+   Grouping both reviewers and products simultaneously is mathematically intractable
+   because reviewer-product interactions form an expansive bipartite connected network.
+------------------------------------------------------------------------------
+4. AGGREGATE METADATA FEATURE LEAKAGE WARNINGS
+------------------------------------------------------------------------------
+The following aggregate features must be handled with care during feature engineering:
+
+1. `product_review_count` and `product_avg_rating` (POTENTIAL LOOKAHEAD LEAKAGE):
+   - Because products overlap between splits, product aggregate metrics in the dataset
+     reflect lifetime platform averages that include reviews submitted on future dates
+     and reviews located in the validation and test splits.
+   - Recommendation: If engineering product aggregates, recalculate them strictly on
+     the training split or treat them as noisy historical priors.
+
+2. `reviewer_account_age_days` (STATIC EXTRACTION SNAPSHOT):
+   - Reviewer account age is identical across historical reviews from the same reviewer,
+     representing a static snapshot taken at database dump time rather than age at review date.
+
+3. Identifiers (`reviewer_id`, `product_id`):
+   - Must NOT be used as predictive model features. They are preserved strictly for
+     grouping, auditing, and error analysis.
+------------------------------------------------------------------------------
+5. FINAL VERDICT
+------------------------------------------------------------------------------
+Status: SPLITTING COMPLETE AND VERIFIED.
+All splits conform to the 70/15/15 target, maintain perfect zero-reviewer leakage,
+zero near-duplicate cluster leakage, and exact class balance preservation.
+==============================================================================

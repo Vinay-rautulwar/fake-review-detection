@@ -1,0 +1,103 @@
+==============================================================================
+ FAKE REVIEW DETECTION DATASET AUDIT & CLEANING REPORT
+==============================================================================
+Execution Timestamp : 2026-10-17 12:00:03
+Raw Dataset File    : data/raw/fake_review_dataset.csv
+Raw File Size       : 8.85 MB
+Raw Row Count       : 30,000 rows
+Raw Column Count    : 17 columns
+------------------------------------------------------------------------------
+1. PIPELINE CLEANING & QUARANTINE SUMMARY
+------------------------------------------------------------------------------
+Original Row Count                 : 30,000
+Cleaned Row Count (Exported)       : 29,821 (99.40%)
+Quarantined Invalid Rows           : 179 (0.60%)
+Quarantined Exact Duplicate Texts  : 0
+Quarantined Normalized Duplicates  : 0
+Flagged Near-Duplicate Reviews     : 3,536 (in 1189 clusters)
+------------------------------------------------------------------------------
+2. CLASS DISTRIBUTION (FAKE VS GENUINE)
+------------------------------------------------------------------------------
+Raw Dataset Distribution:
+  - genuine   : 18,750 rows (62.50%)
+  - fake      : 11,250 rows (37.50%)
+
+Cleaned Dataset Distribution:
+  - genuine   : 18,642 rows (62.51%)
+  - fake      : 11,179 rows (37.49%)
+------------------------------------------------------------------------------
+3. SCHEMA, MISSING VALUES & PRIMARY KEY INTEGRITY
+------------------------------------------------------------------------------
+Required Columns Present           : 17 of 17 (All present)
+Extra / Unexpected Columns         : None
+Missing Columns                    : None
+Total Missing / Null Values        : 0 across all columns
+Unique review_id Count             : 30,000 (100% unique primary keys)
+Duplicate review_id Count          : 0
+------------------------------------------------------------------------------
+4. NEAR-DUPLICATE & TEMPLATE REVIEW ANALYSIS
+------------------------------------------------------------------------------
+Similarity Metric                  : Character n-gram TF-IDF (n=3..4, cosine similarity)
+Configured Similarity Threshold    : 0.9
+Total Near-Duplicate Pairs         : 6,082
+Total Unique Reviews Flagged       : 3,536
+Total Multi-Review Clusters        : 1,189
+  - Pure Fake Clusters             : 348 (all reviews in cluster are fake)
+  - Pure Genuine Clusters          : 545 (all reviews in cluster are genuine)
+  - Mixed Label Clusters           : 296 (cluster contains both fake and genuine)
+
+Key Insight: Mixed-label clusters reveal template-based synthetic generation artifacts where
+nearly identical phrasings (similarity >= 0.90) were assigned opposing labels.
+All near-duplicate reviews are preserved with cluster metadata in data/quarantine/near_duplicate_reviews.csv
+for expert inspection and modeling decisions.
+------------------------------------------------------------------------------
+5. LOGICAL CONSISTENCY & DOMAIN VIOLATIONS
+------------------------------------------------------------------------------
+Verified > Total Review Count      : 179 violations (QUARANTINED)
+Rating Out of Bounds [1.0, 5.0]    : 0 violations
+Invalid / Unrecognized Labels      : 0 violations
+Invalid Verified Purchase Values   : 0 violations
+Negative Product Prices            : 0 violations
+
+Reviewer & Product Domain Observations:
+  1. Platform Aggregate Metrics vs Dataset Sample:
+     - `product_review_count` (range 5 to 12,680) and `reviewer_review_count` (range 1 to 115)
+       reflect lifetime external platform totals, not the row count in this sampled dataset.
+     - As instructed, platform metrics were NOT artificially recalculated.
+  2. Reviewer Account Age Days:
+     - `reviewer_account_age_days` is identical across all historical reviews from the same author,
+       indicating a static user snapshot taken at dataset extraction time.
+  3. Days Since Previous Review:
+     - Exactly 36 rows had minor ordering discrepancies arising from reviews
+       posted on the exact same calendar date by the same reviewer.
+------------------------------------------------------------------------------
+6. FEATURE-LABEL CORRELATIONS & LEAKAGE CHECK
+------------------------------------------------------------------------------
+Correlation with target label ('fake' = 1, 'genuine' = 0):
+  - rating                          : +0.0048
+  - verified_purchase               : -0.1774
+  - product_avg_rating              : +0.0037
+  - product_review_count            : -0.0010
+  - product_price                   : +0.0124
+  - reviewer_review_count           : +0.0030
+  - reviewer_avg_rating             : -0.0075
+  - reviewer_verified_review_count  : -0.0009
+  - reviewer_account_age_days       : -0.0133
+  - days_since_previous_review      : -0.0048
+
+Leakage Assessment: No single feature exhibits extreme correlation (|r| > 0.50).
+The strongest predictor is `verified_purchase` (r = -0.1769), reflecting that unverified reviews
+have a higher fake proportion (49.25%) compared to verified reviews (31.25%).
+------------------------------------------------------------------------------
+7. ISSUES REQUIRING HUMAN / STAKEHOLDER DECISION
+------------------------------------------------------------------------------
+1. Mixed-Label Template Clusters (296 clusters):
+   Nearly identical reviews sharing >90% character n-gram similarity have conflicting ground-truth
+   labels. Human decision is required on whether to deduplicate or treat them as noisy labels.
+2. Upstream Cause of Verified > Total Review Counts (179 rows):
+   The 179 quarantined rows have reviewer_verified_review_count exceeding total reviews by exactly 1.
+   Data engineering team should investigate the upstream ingestion ETL counter logic.
+3. Days Since Previous Review Ties:
+   When multiple reviews occur on the same date, ordering should be disambiguated with a timestamp
+   or tie-breaker rule.
+==============================================================================

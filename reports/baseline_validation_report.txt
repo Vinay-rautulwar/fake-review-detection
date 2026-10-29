@@ -1,0 +1,84 @@
+==============================================================================
+ FAKE REVIEW DETECTION - BASELINE MODEL VALIDATION REPORT (STEP 5)
+==============================================================================
+Execution Date        : 2026-10-17 15:03:25
+Model Architecture    : TF-IDF (word unigrams + bigrams) + LightGBM (GBDT)
+Predictive Input      : review_text (Text-Only Baseline)
+Target Mapping        : genuine = 0, fake = 1
+Training Data Split   : data/splits/train.csv (20,875 reviews)
+Validation Data Split : data/splits/validation.csv (4,472 reviews)
+Test Split Status     : RESERVED (data/splits/test.csv was NOT loaded or evaluated)
+Random Seed           : 42
+------------------------------------------------------------------------------
+1. HYPERPARAMETER CONFIGURATION
+------------------------------------------------------------------------------
+TF-IDF Feature Extraction:
+  - N-gram Range       : (1, 2)
+  - Max Features       : 10,000
+  - Min / Max DF       : min_df=3, max_df=0.95
+  - Sublinear TF       : True (1 + log(tf))
+
+LightGBM Classifier:
+  - Objective          : binary
+  - Boosting Type      : gbdt
+  - Learning Rate      : 0.05
+  - Number of Leaves   : 31
+  - N Estimators       : 300
+  - Subsample (bagging): 0.8
+  - Colsample by Tree  : 0.8
+  - Class Weight       : balanced
+  - Random State       : 42
+------------------------------------------------------------------------------
+2. VALIDATION PERFORMANCE OVERVIEW
+------------------------------------------------------------------------------
+ROC-AUC Score          : 0.6691
+PR-AUC (Avg Precision) : 0.6118
+
+Comparison of Classification Thresholds:
+Metric                    | Default (0.50)     | Validation-Optimal (0.25)
+------------------------------------------------------------------------------
+Precision (Fake)          | 0.4893             | 0.4259                   
+Recall (Fake)             | 0.5340             | 0.9433                   
+F1-Score (Fake)           | 0.5107             | 0.5869                   
+------------------------------------------------------------------------------
+3. CONFUSION MATRICES
+------------------------------------------------------------------------------
+A. At Default Threshold (0.50):
+   True Negative (Genuine as Genuine) :  1862  |  False Positive (Genuine as Fake) :   934
+   False Negative (Fake as Genuine)   :   781  |  True Positive (Fake as Fake)     :   895
+
+B. At Optimal Threshold (0.25):
+   True Negative (Genuine as Genuine) :   665  |  False Positive (Genuine as Fake) :  2131
+   False Negative (Fake as Genuine)   :    95  |  True Positive (Fake as Fake)     :  1581
+------------------------------------------------------------------------------
+4. CLASSIFICATION REPORTS
+------------------------------------------------------------------------------
+Default Threshold (0.50):
+  - Genuine (0) : Precision = 0.7045, Recall = 0.6660, F1 = 0.6847
+  - Fake (1)    : Precision = 0.4893, Recall = 0.5340, F1 = 0.5107
+  - Macro Avg   : Precision = 0.5969, Recall = 0.6000, F1 = 0.5977
+
+Optimal Threshold (0.25):
+  - Genuine (0) : Precision = 0.8750, Recall = 0.2378, F1 = 0.3740
+  - Fake (1)    : Precision = 0.4259, Recall = 0.9433, F1 = 0.5869
+  - Macro Avg   : Precision = 0.6505, Recall = 0.5906, F1 = 0.4804
+------------------------------------------------------------------------------
+5. DIAGNOSTIC OBSERVATIONS & CAVEATS
+------------------------------------------------------------------------------
+1. Realistic Baseline Discrimination:
+   - On unseen reviewers, the text-only TF-IDF baseline achieves an ROC-AUC of 0.6691
+     and PR-AUC of 0.6118. At threshold 0.50, F1 is 0.5107.
+   - Because the data was split with strict reviewer and template-cluster isolation,
+     the model cannot cheat by memorizing specific reviewers or leaking near-identical templates.
+
+2. Synthetic Dataset Structural Artifacts:
+   - As audited in Steps 2 and 3, 296 template clusters contain mixed labels where near-identical
+     phrasing was assigned to both genuine and fake classes during synthetic data generation.
+   - A linear/bag-of-words model like TF-IDF naturally struggles to separate identical phrasing
+     that carries opposing ground-truth labels based solely on n-grams.
+
+3. Next Modeling Steps (DeBERTa & Multimodal Fusion):
+   - Deep contextual transformers (DeBERTa-v3) will better capture contextual nuances.
+   - Multimodal fusion incorporating legitimate behavioral metadata (e.g. verified_purchase,
+     properly calculated historical rates) is expected to significantly boost discrimination.
+==============================================================================
