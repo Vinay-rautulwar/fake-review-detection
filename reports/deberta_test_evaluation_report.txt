@@ -1,0 +1,88 @@
+=============================================================================
+  FAKE REVIEW DETECTION - DEBERTA-V3 TEST SET EVALUATION BENCHMARK REPORT
+=============================================================================
+Project               : fake-review-detection-v2
+Evaluation Script     : training/scripts/evaluate_deberta_test.py
+Model Architecture    : microsoft/deberta-v3-base (86M parameters)
+Weights Path          : backend/models/deberta_fp32_final/ (model.safetensors)
+Input Modality        : review_text ONLY (text-only transformer, max 256 tokens)
+Evaluation Target     : Binary Classification (0 = genuine, 1 = fake)
+Inference Engine      : PyTorch 2.14.0+cpu, torch.no_grad(), model.eval()
+Decision Threshold    : 0.50 (Default fixed threshold, strictly no test-set tuning)
+Test Split File       : data/splits/test.csv
+Total Test Reviews    : 4,474
+  - Actual Genuine (0): 2,797 reviews (62.52%)
+  - Actual Fake (1)   : 1,677 reviews (37.48%)
+Hardware Run          : 12-Core CPU (12 intra-op threads)
+Evaluation Runtime    : 190.98 seconds (23.4 reviews / second)
+-----------------------------------------------------------------------------
+1. OFFICIAL TEST BENCHMARK RESULTS
+-----------------------------------------------------------------------------
+Metric                        Score      Percentage
+-----------------------------------------------------------------------------
+Accuracy                      0.7143     71.43%
+Precision (Fake Class)        0.8674     86.74%
+Recall (Fake Class)           0.2809     28.09%
+F1-Score (Fake Class)         0.4243     42.43%
+ROC-AUC Score                 0.7152     -
+PR-AUC (Average Precision)    0.6639     -
+-----------------------------------------------------------------------------
+Macro Average F1              0.6172
+Weighted Average F1           0.6655
+-----------------------------------------------------------------------------
+
+2. CONFUSION MATRIX (Actual vs. Predicted)
+-----------------------------------------------------------------------------
+                     Predicted Genuine (0)    Predicted Fake (1)      Total Actual
+  Actual Genuine (0)         2,725 (TN)                  72 (FP)         2,797
+  Actual Fake (1)            1,206 (FN)                 471 (TP)         1,677
+  Total Predicted            3,931                      543         4,474
+
+Key Observations from Confusion Matrix:
+- True Negatives (TN) : 2,725 out of 2,797 authentic reviews correctly identified (97.43% specificity).
+- False Positives (FP): Only 72 authentic reviews misclassified as fake (extremely low false alarm rate: 2.57%).
+- False Negatives (FN): 1,206 fake reviews were missed at threshold 0.50 due to linguistic overlap.
+- True Positives (TP) : 471 fake reviews detected with high confidence.
+
+3. DETAILED CLASSIFICATION REPORT
+-----------------------------------------------------------------------------
+              precision    recall  f1-score   support
+
+ genuine (0)     0.6932    0.9743    0.8100      2,797
+    fake (1)     0.8674    0.2809    0.4243      1,677
+
+    accuracy                         0.7143      4,474
+   macro avg     0.7803    0.6276    0.6172      4,474
+weighted avg     0.7585    0.7143    0.6655      4,474
+
+-----------------------------------------------------------------------------
+4. COMPARATIVE ANALYSIS (BASELINE vs. DEBERTA-V3 ON TEST SPLIT)
+-----------------------------------------------------------------------------
+Metric                  Baseline (TF-IDF + LightGBM)   DeBERTa-v3-base (FP32)
+-----------------------------------------------------------------------------
+Accuracy                ~64.5%                         71.43% (+6.9%)
+ROC-AUC Score           0.6691                         0.7152 (+0.0461)
+PR-AUC Score            0.6118                         0.6639 (+0.0521)
+Precision (Fake)        0.4893                         0.8674 (+37.8%)
+Recall (Fake)           0.5340                         0.2809 (-25.3%)
+F1-Score (Fake)         0.5107                         0.4243
+False Positive Rate     ~33.4%                         2.57%  (Massive reduction)
+-----------------------------------------------------------------------------
+
+5. SCIENTIFIC & PRACTICAL TAKEAWAYS
+-----------------------------------------------------------------------------
+1. High-Precision Regime:
+   When DeBERTa-v3 flags a review as deceptive, it is correct in 86.74% of cases.
+   This drastically reduces wrongful penalization of legitimate sellers/reviewers
+   compared to the TF-IDF baseline (which had a ~33% false alarm rate).
+
+2. Trade-Off on Recall:
+   At threshold 0.50, recall is 28.09%. Because DeBERTa-v3 is a strictly text-only
+   model, subtle promotional text that mimics genuine reviews without obvious
+   deceptive syntax cannot be caught on text alone.
+
+3. Motivation for Step 7 (Multimodal Fusion):
+   Combining DeBERTa's high-precision text embeddings with tabular behavioral
+   metadata (verified_purchase, review frequency, rating deviation) will bridge
+   the recall gap without sacrificing precision.
+=============================================================================

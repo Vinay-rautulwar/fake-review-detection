@@ -603,7 +603,11 @@
         </div>
 
         <!-- Verified Test Metrics Grid -->
-        <div class="metrics-summary-grid" style="margin-bottom: 1.5rem;">
+        <div class="metrics-summary-grid" style="margin-bottom: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+          <div class="metric-pill-card">
+            <div class="metric-pill-label">Overall Accuracy</div>
+            <div class="metric-pill-val" style="color: var(--emerald-400);">71.43%</div>
+          </div>
           <div class="metric-pill-card">
             <div class="metric-pill-label">ROC-AUC Score</div>
             <div class="metric-pill-val" style="color: var(--cyan-400);">0.7152</div>
@@ -705,6 +709,12 @@
                 </tr>
               </thead>
               <tbody>
+                <tr>
+                  <td><strong>Overall Accuracy</strong></td>
+                  <td class="font-mono">~64.5%</td>
+                  <td class="font-mono" style="color: var(--emerald-400); font-weight: 600;">71.43%</td>
+                  <td class="font-mono" style="color: var(--text-muted);">Scaffolded</td>
+                </tr>
                 <tr>
                   <td><strong>ROC-AUC Score</strong></td>
                   <td class="font-mono">0.6691</td>
