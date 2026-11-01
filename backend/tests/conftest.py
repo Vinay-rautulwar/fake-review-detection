@@ -20,7 +20,7 @@ class DummyAvailableModelService(ModelService):
         self._is_available = True
         self._status_message = "Test model loaded successfully."
 
-    def predict(self, review_text: str, metadata=None) -> PredictionResult:
+    def predict(self, review_text: str, metadata=None, model_name=None, threshold=None, **kwargs) -> PredictionResult:
         # Realistic mock prediction for tests
         is_fake = "free" in review_text.lower() or "scam" in review_text.lower()
         fake_prob = 0.85 if is_fake else 0.15
@@ -31,8 +31,8 @@ class DummyAvailableModelService(ModelService):
             model_name="test_model",
         )
 
-    def predict_batch(self, reviews):
-        return [self.predict(r) for r in reviews]
+    def predict_batch(self, reviews, model_name=None, threshold=None, **kwargs):
+        return [self.predict(r, model_name=model_name, threshold=threshold) for r in reviews]
 
 
 class DummyUnavailableModelService(ModelService):
@@ -45,12 +45,12 @@ class DummyUnavailableModelService(ModelService):
         self._is_available = False
         self._status_message = "DeBERTa Multimodal Fusion model is not trained yet. Artifacts missing."
 
-    def predict(self, review_text: str, metadata=None):
+    def predict(self, review_text: str, metadata=None, model_name=None, threshold=None, **kwargs):
         raise ModelUnavailableException(
             f"Model '{self.configured_model}' is currently unavailable: {self._status_message}"
         )
 
-    def predict_batch(self, reviews):
+    def predict_batch(self, reviews, model_name=None, threshold=None, **kwargs):
         raise ModelUnavailableException(
             f"Batch inference unavailable: Model '{self.configured_model}' is not loaded."
         )

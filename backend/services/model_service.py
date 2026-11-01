@@ -29,13 +29,15 @@ class PredictionResult(BaseModel):
 
 
 class ModelService:
-    """Manages model artifact verification, lifecycle loading, and isolated inference."""
+    """Manages model artifact verification, lifecycle loading, and multi-model inference."""
 
     SUPPORTED_MODELS: Dict[str, Dict[str, Any]] = {
         "deberta_fusion": {
             "name": "deberta_fusion",
-            "display_name": "DeBERTa-v3-base + Tabular Metadata Fusion",
-            "architecture": "DeBERTa-v3 Contextual Embeddings + Tabular Behavioral Dense Layers",
+            "display_name": "DeBERTa-v3-base + Tabular FusionNet",
+            "category": "Multimodal Deep Learning",
+            "contributor": "Vinay Rautulwar",
+            "architecture": "DeBERTa-v3 Text Embeddings + 13-Dim Tabular Metadata Dense MLP (Focal Loss)",
             "input_type": "multimodal",
             "relative_path": "backend/models/hybrid_deberta_tabular",
             "required_files": ["tabular_scaler.joblib"],
@@ -43,26 +45,53 @@ class ModelService:
         "deberta_text": {
             "name": "deberta_text",
             "display_name": "DeBERTa-v3-base Text-Only (FP32)",
-            "architecture": "microsoft/deberta-v3-base Transformer",
+            "category": "Transformer Text-Only",
+            "contributor": "Vinay Rautulwar",
+            "architecture": "microsoft/deberta-v3-base Transformer (86M Parameters)",
             "input_type": "text-only",
             "relative_path": "backend/models/deberta_fp32_final",
             "required_files": ["config.json"],
         },
-        "fakeguard": {
-            "name": "fakeguard",
-            "display_name": "FakeGuard Tri-View Cross-Attention Fusion",
-            "architecture": "Text (DeBERTa/BERT) + Behavior (MLP) + Relational (GAT) + Cross-Attention",
-            "input_type": "multimodal",
-            "relative_path": "src/models",
-            "required_files": ["fakeguard.py", "fusion.py"],
-        },
         "baseline": {
             "name": "baseline",
             "display_name": "TF-IDF + LightGBM Baseline",
+            "category": "Gradient Boosted Trees",
+            "contributor": "Vinay Rautulwar",
             "architecture": "Word N-Grams (1,2) + LightGBM GBDT",
             "input_type": "text-only",
             "relative_path": "training/artifacts/baseline",
             "required_files": ["tfidf_vectorizer.joblib", "lightgbm_model.joblib"],
+        },
+        "bilstm": {
+            "name": "bilstm",
+            "display_name": "Packed Bidirectional LSTM (BiLSTM)",
+            "category": "Recurrent Deep Learning",
+            "contributor": "Pramit Ghosh",
+            "architecture": "Word Embeddings (128d) + BiLSTM (64h) + Pack-Padded Sequences",
+            "input_type": "text-only",
+            "relative_path": "training/artifacts/bilstm",
+            "required_files": ["best_bilstm.pt", "vocab.json"],
+        },
+        "svm": {
+            "name": "svm",
+            "display_name": "Calibrated Linear SVM (TF-IDF)",
+            "category": "Linear Classification",
+            "contributor": "Pramit Ghosh",
+            "architecture": "Word TF-IDF + Calibrated Linear Support Vector Classifier",
+            "input_type": "text-only",
+            "relative_path": "training/artifacts/svm",
+            "required_files": ["calibrated_svm.joblib", "tfidf_vectorizer.joblib"],
+        },
+        "fakeguard": {
+            "name": "fakeguard",
+            "display_name": "FakeGuard Tri-View Cross-Attention Net",
+            "category": "Multi-View Cross-Attention (Experimental)",
+            "contributor": "Pramit Ghosh",
+            "architecture": "Text (DeBERTa) + Behavior (MLP) + Relational (GAT) + Cross-Attention",
+            "input_type": "multimodal",
+            "relative_path": "src/models",
+            "required_files": ["fakeguard.py", "fusion.py"],
+            "note": "Untrained checkpoint; runs with random initialization and explainable attention weights.",
         },
     }
 
@@ -73,6 +102,7 @@ class ModelService:
         self._status_message: str = "Model has not been initialized."
         self._loaded_artifacts: Optional[Any] = None
         self._device: str = "cpu"
+        self._model_cache: Dict[str, Any] = {}
 
     @property
     def is_loaded(self) -> bool:
@@ -90,8 +120,164 @@ class ModelService:
     def device(self) -> str:
         return self._device
 
+    def _load_model_artifacts(self, model_key: str) -> Dict[str, Any]:
+        """Load and return artifacts for a specific model key, raising on failure."""
+        if model_key in self._model_cache:
+            return self._model_cache[model_key]
+
+        artifacts_dir = settings.get_artifacts_dir(model_key)
+
+        if model_key == "baseline":
+            import joblib
+            vec_path = artifacts_dir / "tfidf_vectorizer.joblib"
+            lgb_path = artifacts_dir / "lightgbm_model.joblib"
+            vectorizer = joblib.load(vec_path)
+            model = joblib.load(lgb_path)
+            bundle = {"vectorizer": vectorizer, "model": model, "device": "cpu"}
+            self._model_cache[model_key] = bundle
+            return bundle
+
+        elif model_key == "deberta_text":
+            import torch
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            tokenizer = AutoTokenizer.from_pretrained(str(artifacts_dir), local_files_only=True)
+            model = AutoModelForSequenceClassification.from_pretrained(str(artifacts_dir), local_files_only=True)
+            model.eval()
+            model.to(device)
+            bundle = {"tokenizer": tokenizer, "model": model, "torch": torch, "device": device}
+            self._model_cache[model_key] = bundle
+            return bundle
+
+        elif model_key == "deberta_fusion":
+            import torch
+            import joblib
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
+            from src.models.hybrid_fusion import DeBERTaTabularFusionNet, extract_tabular_features
+
+            scaler_bundle = joblib.load(artifacts_dir / "tabular_scaler.joblib")
+            scaler = scaler_bundle["scaler"]
+            feature_names = scaler_bundle["feature_names"]
+
+            pt_path = artifacts_dir / "pytorch_hybrid_focal_loss.pt"
+            if not pt_path.exists():
+                pt_path = artifacts_dir / "pytorch_hybrid_class_weighted.pt"
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            checkpoint = torch.load(pt_path, map_location=device, weights_only=False)
+
+            fusion_model = DeBERTaTabularFusionNet(
+                text_dim=checkpoint.get("text_dim", 768),
+                tab_dim=checkpoint.get("tab_dim", len(feature_names)),
+                hidden_dim=checkpoint.get("hidden_dim", 64),
+            )
+            fusion_model.load_state_dict(checkpoint["model_state_dict"])
+            fusion_model.eval()
+            fusion_model.to(device)
+
+            deberta_dir = settings.get_artifacts_dir("deberta_text")
+            tokenizer = AutoTokenizer.from_pretrained(str(deberta_dir), local_files_only=True)
+            deberta_text = AutoModelForSequenceClassification.from_pretrained(str(deberta_dir), local_files_only=True)
+            deberta_text.eval()
+            deberta_text.to(device)
+
+            val_thresh = float(checkpoint.get("val_threshold", 0.41))
+            bundle = {
+                "fusion_model": fusion_model,
+                "deberta_text": deberta_text,
+                "tokenizer": tokenizer,
+                "scaler": scaler,
+                "feature_names": feature_names,
+                "val_threshold": val_thresh,
+                "torch": torch,
+                "device": device,
+                "extract_tabular_features": extract_tabular_features,
+            }
+            self._model_cache[model_key] = bundle
+            return bundle
+
+        elif model_key == "bilstm":
+            import torch
+            from src.models.bilstm import BiLSTMClassifier, tokenize_text, encode_sequence
+
+            with open(artifacts_dir / "vocab.json", "r", encoding="utf-8") as f:
+                vocab = json.load(f)
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            bilstm_model = BiLSTMClassifier(vocab_size=len(vocab), embedding_dim=128, hidden_dim=64)
+            bilstm_model.load_state_dict(torch.load(artifacts_dir / "best_bilstm.pt", map_location=device, weights_only=False))
+            bilstm_model.eval()
+            bilstm_model.to(device)
+
+            bundle = {
+                "bilstm_model": bilstm_model,
+                "vocab": vocab,
+                "device": device,
+                "torch": torch,
+                "encode_sequence": encode_sequence,
+            }
+            self._model_cache[model_key] = bundle
+            return bundle
+
+        elif model_key == "svm":
+            import joblib
+            svm_model = joblib.load(artifacts_dir / "calibrated_svm.joblib")
+            vectorizer = joblib.load(artifacts_dir / "tfidf_vectorizer.joblib")
+            bundle = {"svm_model": svm_model, "vectorizer": vectorizer, "device": "cpu"}
+            self._model_cache[model_key] = bundle
+            return bundle
+
+        elif model_key == "fakeguard":
+            import torch
+            import yaml
+            from src.models.fakeguard import FakeGuard
+            from src.models.hybrid_fusion import extract_tabular_features
+            from transformers import AutoTokenizer
+
+            config_path = settings.BASE_DIR / "configs" / "config.yaml"
+            cfg = {}
+            if config_path.exists():
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg = yaml.safe_load(f) or {}
+
+            deberta_dir = settings.get_artifacts_dir("deberta_text")
+            model_cfg = cfg.get("model", {})
+            if "text_encoder" in model_cfg:
+                model_cfg["text"] = model_cfg.pop("text_encoder")
+            if "text" not in model_cfg:
+                model_cfg["text"] = {}
+            model_cfg["text"]["model_name"] = str(deberta_dir)
+            model_cfg["text"]["fine_tune"] = False
+
+            if "behavior_encoder" in model_cfg:
+                model_cfg["behavior"] = model_cfg.pop("behavior_encoder")
+                model_cfg["behavior"]["input_dim"] = 13
+            if "graph_encoder" in model_cfg:
+                model_cfg["graph"] = model_cfg.pop("graph_encoder")
+                model_cfg["graph"]["in_channels"] = 64
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            fakeguard_model = FakeGuard(model_cfg)
+            fakeguard_model.eval()
+            fakeguard_model.to(device)
+
+            tokenizer = AutoTokenizer.from_pretrained(str(deberta_dir), local_files_only=True)
+
+            bundle = {
+                "fakeguard_model": fakeguard_model,
+                "tokenizer": tokenizer,
+                "torch": torch,
+                "device": device,
+                "extract_tabular_features": extract_tabular_features,
+            }
+            self._model_cache[model_key] = bundle
+            return bundle
+
+        else:
+            raise ValueError(f"Unknown model architecture key '{model_key}'")
+
     def load_configured_model(self) -> bool:
-        """Attempt to load the model specified in settings. Never substitute missing models."""
+        """Attempt to load the model specified in settings."""
         self.configured_model = settings.MODEL_TYPE
         model_key = self._normalize_model_name(self.configured_model)
 
@@ -100,245 +286,57 @@ class ModelService:
         if model_key not in self.SUPPORTED_MODELS:
             self._is_loaded = False
             self._is_available = False
-            self._status_message = (
-                f"Unknown model architecture '{self.configured_model}'. "
-                f"Supported models: {list(self.SUPPORTED_MODELS.keys())}"
-            )
-            logger.warning(self._status_message)
+            self._status_message = f"Unknown model architecture '{self.configured_model}'."
             return False
 
-        model_meta = self.SUPPORTED_MODELS[model_key]
-        artifacts_dir = settings.get_artifacts_dir(model_key)
-
-        # Check required artifact files
-        missing_files = []
-        for req_file in model_meta["required_files"]:
-            file_path = artifacts_dir / req_file
-            if not file_path.exists():
-                missing_files.append(req_file)
-
-        if missing_files:
-            self._is_loaded = False
-            self._is_available = False
-            self._status_message = (
-                f"Artifacts missing for '{model_key}' in {artifacts_dir}: {missing_files}"
-            )
-            logger.warning(f"Model unavailable: {self._status_message}")
-            return False
-
-        # Load artifacts safely if files exist
         try:
-            if model_key == "baseline":
-                import joblib
-
-                vec_path = artifacts_dir / "tfidf_vectorizer.joblib"
-                lgb_path = artifacts_dir / "lightgbm_model.joblib"
-                vectorizer = joblib.load(vec_path)
-                model = joblib.load(lgb_path)
-                self._device = "cpu"
-                self._loaded_artifacts = {"vectorizer": vectorizer, "model": model, "device": "cpu"}
-                self._is_loaded = True
-                self._is_available = True
-                self._status_message = "TF-IDF + LightGBM baseline model successfully loaded into memory."
-                logger.info(self._status_message)
-                return True
-
-            elif model_key == "deberta_text":
-                has_weights = (artifacts_dir / "model.safetensors").exists() or (artifacts_dir / "pytorch_model.bin").exists()
-                if not has_weights:
-                    self._is_loaded = False
-                    self._is_available = False
-                    self._status_message = (
-                        f"DeBERTa-v3 text-only model weights not found in {artifacts_dir}. "
-                        "Extracted weights (model.safetensors or pytorch_model.bin) are required."
-                    )
-                    logger.warning(self._status_message)
-                    return False
-
-                try:
-                    import torch
-                    from transformers import AutoModelForSequenceClassification, AutoTokenizer
-                except ImportError:
-                    self._is_loaded = False
-                    self._is_available = False
-                    self._status_message = (
-                        "DeBERTa-v3 artifacts detected, but 'torch' and 'transformers' are not installed."
-                    )
-                    logger.warning(self._status_message)
-                    return False
-
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-                logger.info(f"Loading local DeBERTa-v3 model on device '{device}' from {artifacts_dir}...")
-
-                tokenizer = AutoTokenizer.from_pretrained(str(artifacts_dir), local_files_only=True)
-                model = AutoModelForSequenceClassification.from_pretrained(str(artifacts_dir), local_files_only=True)
-                model.eval()
-                model.to(device)
-
-                self._device = device
-                self._loaded_artifacts = {
-                    "tokenizer": tokenizer,
-                    "model": model,
-                    "torch": torch,
-                    "device": device,
-                }
-                self._is_loaded = True
-                self._is_available = True
-                self._status_message = f"DeBERTa-v3-base model successfully loaded into memory on {device} (FP32)."
-                logger.info(self._status_message)
-                return True
-
-            elif model_key == "deberta_fusion":
-                try:
-                    import torch
-                    import joblib
-                    from transformers import AutoModelForSequenceClassification, AutoTokenizer
-                    from src.models.hybrid_fusion import DeBERTaTabularFusionNet, extract_tabular_features
-                except ImportError as e:
-                    self._is_loaded = False
-                    self._is_available = False
-                    self._status_message = f"Dependencies missing for hybrid multimodal model: {e}"
-                    logger.warning(self._status_message)
-                    return False
-
-                scaler_bundle = joblib.load(artifacts_dir / "tabular_scaler.joblib")
-                scaler = scaler_bundle["scaler"]
-                feature_names = scaler_bundle["feature_names"]
-
-                pt_path = artifacts_dir / "pytorch_hybrid_class_weighted.pt"
-                if not pt_path.exists():
-                    pt_path = artifacts_dir / "pytorch_hybrid_focal_loss.pt"
-
-                if not pt_path.exists():
-                    self._is_loaded = False
-                    self._is_available = False
-                    self._status_message = f"PyTorch hybrid checkpoint missing in {artifacts_dir}."
-                    return False
-
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-                checkpoint = torch.load(pt_path, map_location=device, weights_only=False)
-
-                fusion_model = DeBERTaTabularFusionNet(
-                    text_dim=checkpoint.get("text_dim", 768),
-                    tab_dim=checkpoint.get("tab_dim", len(feature_names)),
-                    hidden_dim=checkpoint.get("hidden_dim", 64),
-                )
-                fusion_model.load_state_dict(checkpoint["model_state_dict"])
-                fusion_model.eval()
-                fusion_model.to(device)
-
-                deberta_dir = settings.get_artifacts_dir("deberta_text")
-                tokenizer = AutoTokenizer.from_pretrained(str(deberta_dir), local_files_only=True)
-                deberta_text = AutoModelForSequenceClassification.from_pretrained(str(deberta_dir), local_files_only=True)
-                deberta_text.eval()
-                deberta_text.to(device)
-
-                val_thresh = float(checkpoint.get("val_threshold", 0.30))
-                self._device = device
-                self._loaded_artifacts = {
-                    "fusion_model": fusion_model,
-                    "deberta_text": deberta_text,
-                    "tokenizer": tokenizer,
-                    "scaler": scaler,
-                    "feature_names": feature_names,
-                    "val_threshold": val_thresh,
-                    "torch": torch,
-                    "device": device,
-                    "extract_tabular_features": extract_tabular_features,
-                }
-                self._is_loaded = True
-                self._is_available = True
-                self._status_message = f"DeBERTa + Tabular Hybrid Fusion model loaded on {device} (threshold={val_thresh:.2f})."
-                logger.info(self._status_message)
-                return True
-
-            elif model_key == "fakeguard":
-                try:
-                    import torch
-                    import yaml
-                    from src.models.fakeguard import FakeGuard
-                    from src.models.hybrid_fusion import extract_tabular_features
-                    from transformers import AutoTokenizer
-                except ImportError as e:
-                    self._is_loaded = False
-                    self._is_available = False
-                    self._status_message = f"Dependencies missing for FakeGuard: {e}"
-                    return False
-
-                config_path = settings.BASE_DIR / "configs" / "config.yaml"
-                cfg = {}
-                if config_path.exists():
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        cfg = yaml.safe_load(f) or {}
-
-                model_cfg = cfg.get("model", {})
-                if "text_encoder" in model_cfg:
-                    model_cfg["text"] = model_cfg.pop("text_encoder")
-                if "behavior_encoder" in model_cfg:
-                    model_cfg["behavior"] = model_cfg.pop("behavior_encoder")
-                    model_cfg["behavior"]["input_dim"] = 13
-                if "graph_encoder" in model_cfg:
-                    model_cfg["graph"] = model_cfg.pop("graph_encoder")
-                    model_cfg["graph"]["in_channels"] = 64
-
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-                fakeguard_model = FakeGuard(model_cfg)
-                fakeguard_model.eval()
-                fakeguard_model.to(device)
-
-                deberta_dir = settings.get_artifacts_dir("deberta_text")
-                tokenizer = AutoTokenizer.from_pretrained(str(deberta_dir), local_files_only=True)
-
-                self._device = device
-                self._loaded_artifacts = {
-                    "fakeguard_model": fakeguard_model,
-                    "tokenizer": tokenizer,
-                    "torch": torch,
-                    "device": device,
-                    "extract_tabular_features": extract_tabular_features,
-                }
-                self._is_loaded = True
-                self._is_available = True
-                self._status_message = f"FakeGuard Tri-View model loaded on {device} with cross-attention explainability."
-                logger.info(self._status_message)
-                return True
-
-            else:
-                self._is_loaded = False
-                self._is_available = False
-                self._status_message = f"Model '{model_key}' loader pending implementation."
-                return False
-
+            bundle = self._load_model_artifacts(model_key)
+            self._loaded_artifacts = bundle
+            self._device = bundle.get("device", "cpu")
+            self._is_loaded = True
+            self._is_available = True
+            self._status_message = f"{self.SUPPORTED_MODELS[model_key]['display_name']} successfully loaded into memory."
+            logger.info(self._status_message)
+            return True
         except Exception as e:
             self._is_loaded = False
             self._is_available = False
-            self._status_message = f"Failed to load model artifacts: {type(e).__name__}: {str(e)}"
+            self._status_message = f"Failed to load model artifacts: {e}"
             logger.error(self._status_message)
             return False
 
-    def predict(self, review_text: str, metadata: Optional[Dict[str, Any]] = None) -> PredictionResult:
-        """Run single prediction on trained model. Raise ModelUnavailableException if not ready."""
-        if not self._is_available or self._loaded_artifacts is None:
-            raise ModelUnavailableException(
-                f"Model '{self.configured_model}' is currently unavailable: {self._status_message}"
-            )
-
+    def predict(
+        self,
+        review_text: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        model_name: Optional[str] = None,
+        threshold: Optional[float] = None,
+    ) -> PredictionResult:
+        """Run single prediction on trained model with optional model override and threshold control."""
         if not review_text or len(review_text.strip()) < 3:
             raise ValueError("review_text must contain at least 3 non-whitespace characters.")
         if len(review_text) > 10000:
             raise ValueError("review_text exceeds maximum limit of 10,000 characters.")
 
-        model_key = self._normalize_model_name(self.configured_model)
-        if model_key == "baseline":
-            vectorizer = self._loaded_artifacts["vectorizer"]
-            model = self._loaded_artifacts["model"]
+        target_model = self._normalize_model_name(model_name or self.configured_model)
+
+        try:
+            artifacts = self._load_model_artifacts(target_model)
+        except Exception as e:
+            raise ModelUnavailableException(f"Requested model '{target_model}' is not available: {e}")
+
+        # 1. TF-IDF + LightGBM Baseline
+        if target_model == "baseline":
+            vectorizer = artifacts["vectorizer"]
+            model = artifacts["model"]
 
             X = vectorizer.transform([review_text])
             probs = model.predict_proba(X)[0]
             p_fake = float(probs[1])
             p_genuine = float(probs[0])
 
-            label_idx = 1 if p_fake >= 0.50 else 0
+            thresh = threshold if threshold is not None else 0.50
+            label_idx = 1 if p_fake >= thresh else 0
             label_str = "fake" if label_idx == 1 else "genuine"
             confidence = max(p_fake, p_genuine)
 
@@ -353,19 +351,19 @@ class ModelService:
                 model="tfidf_lightgbm",
             )
 
-        elif model_key == "deberta_text":
-            tokenizer = self._loaded_artifacts["tokenizer"]
-            model = self._loaded_artifacts["model"]
-            torch = self._loaded_artifacts["torch"]
-            device = self._loaded_artifacts.get("device", "cpu")
+        # 2. DeBERTa-v3 Text-Only
+        elif target_model == "deberta_text":
+            tokenizer = artifacts["tokenizer"]
+            model = artifacts["model"]
+            torch = artifacts["torch"]
+            device = artifacts["device"]
 
             inputs = tokenizer(
                 review_text,
                 return_tensors="pt",
                 truncation=True,
                 max_length=256,
-            )
-            inputs = {k: v.to(device) for k, v in inputs.items()}
+            ).to(device)
 
             with torch.inference_mode():
                 outputs = model(**inputs)
@@ -373,7 +371,8 @@ class ModelService:
 
             p_genuine = float(probs[0])
             p_fake = float(probs[1])
-            label_idx = 1 if p_fake >= 0.50 else 0
+            thresh = threshold if threshold is not None else 0.50
+            label_idx = 1 if p_fake >= thresh else 0
             label_str = "fake" if label_idx == 1 else "genuine"
             confidence = max(p_fake, p_genuine)
 
@@ -388,18 +387,18 @@ class ModelService:
                 model="deberta-v3-base",
             )
 
-        elif model_key == "deberta_fusion":
-            fusion_model = self._loaded_artifacts["fusion_model"]
-            deberta_text = self._loaded_artifacts["deberta_text"]
-            tokenizer = self._loaded_artifacts["tokenizer"]
-            scaler = self._loaded_artifacts["scaler"]
-            val_threshold = self._loaded_artifacts["val_threshold"]
-            torch = self._loaded_artifacts["torch"]
-            device = self._loaded_artifacts["device"]
-            extract_fn = self._loaded_artifacts["extract_tabular_features"]
+        # 3. DeBERTa + Tabular FusionNet
+        elif target_model == "deberta_fusion":
+            fusion_model = artifacts["fusion_model"]
+            deberta_text = artifacts["deberta_text"]
+            tokenizer = artifacts["tokenizer"]
+            scaler = artifacts["scaler"]
+            val_threshold = artifacts.get("val_threshold", 0.41)
+            torch = artifacts["torch"]
+            device = artifacts["device"]
+            extract_fn = artifacts["extract_tabular_features"]
 
-            encoded = tokenizer([review_text], padding=True, truncation=True, max_length=128, return_tensors="pt")
-            encoded = {k: v.to(device) for k, v in encoded.items()}
+            encoded = tokenizer([review_text], padding=True, truncation=True, max_length=128, return_tensors="pt").to(device)
 
             with torch.no_grad():
                 enc_out = deberta_text.deberta(**encoded)
@@ -414,7 +413,8 @@ class ModelService:
 
             p_genuine = float(probs[0])
             p_fake = float(probs[1])
-            label_idx = 1 if p_fake >= val_threshold else 0
+            thresh = threshold if threshold is not None else val_threshold
+            label_idx = 1 if p_fake >= thresh else 0
             label_str = "fake" if label_idx == 1 else "genuine"
             confidence = max(p_fake, p_genuine)
 
@@ -429,16 +429,78 @@ class ModelService:
                 model="deberta_fusion",
             )
 
-        elif model_key == "fakeguard":
-            fakeguard_model = self._loaded_artifacts["fakeguard_model"]
-            tokenizer = self._loaded_artifacts["tokenizer"]
-            torch = self._loaded_artifacts["torch"]
-            device = self._loaded_artifacts["device"]
-            extract_fn = self._loaded_artifacts["extract_tabular_features"]
+        # 4. Packed BiLSTM
+        elif target_model == "bilstm":
+            bilstm_model = artifacts["bilstm_model"]
+            vocab = artifacts["vocab"]
+            torch = artifacts["torch"]
+            device = artifacts["device"]
+            encode_fn = artifacts["encode_sequence"]
 
-            encoded = tokenizer([review_text], padding=True, truncation=True, max_length=128, return_tensors="pt")
-            input_ids = encoded["input_ids"].to(device)
-            attention_mask = encoded["attention_mask"].to(device)
+            tokens = encode_fn(review_text, vocab, max_length=100)
+            length = min(len(tokens), 100)
+            padded = tokens + [0] * (100 - len(tokens))
+            t_tokens = torch.tensor([padded], dtype=torch.long, device=device)
+            t_lens = torch.tensor([length], dtype=torch.long, device=device)
+
+            with torch.no_grad():
+                logit = bilstm_model(t_tokens, t_lens).squeeze()
+                p_fake = float(torch.sigmoid(logit).item())
+                p_genuine = float(1.0 - p_fake)
+
+            thresh = threshold if threshold is not None else 0.50
+            label_idx = 1 if p_fake >= thresh else 0
+            label_str = "fake" if label_idx == 1 else "genuine"
+            confidence = max(p_fake, p_genuine)
+
+            return PredictionResult(
+                predicted_label=label_str,
+                prediction=label_str,
+                label=label_idx,
+                fake_probability=round(p_fake, 4),
+                genuine_probability=round(p_genuine, 4),
+                confidence=round(confidence, 4),
+                model_name="bilstm",
+                model="bilstm",
+            )
+
+        # 5. Calibrated Linear SVM
+        elif target_model == "svm":
+            svm_model = artifacts["svm_model"]
+            vectorizer = artifacts["vectorizer"]
+
+            X = vectorizer.transform([review_text])
+            probs = svm_model.predict_proba(X)[0]
+            p_fake = float(probs[1])
+            p_genuine = float(probs[0])
+
+            thresh = threshold if threshold is not None else 0.50
+            label_idx = 1 if p_fake >= thresh else 0
+            label_str = "fake" if label_idx == 1 else "genuine"
+            confidence = max(p_fake, p_genuine)
+
+            return PredictionResult(
+                predicted_label=label_str,
+                prediction=label_str,
+                label=label_idx,
+                fake_probability=round(p_fake, 4),
+                genuine_probability=round(p_genuine, 4),
+                confidence=round(confidence, 4),
+                model_name="svm",
+                model="svm",
+            )
+
+        # 6. FakeGuard Tri-View
+        elif target_model == "fakeguard":
+            fakeguard_model = artifacts["fakeguard_model"]
+            tokenizer = artifacts["tokenizer"]
+            torch = artifacts["torch"]
+            device = artifacts["device"]
+            extract_fn = artifacts["extract_tabular_features"]
+
+            encoded = tokenizer([review_text], padding=True, truncation=True, max_length=128, return_tensors="pt").to(device)
+            input_ids = encoded["input_ids"]
+            attention_mask = encoded["attention_mask"]
 
             meta_dict = metadata or {}
             tab_feat, _ = extract_fn(meta_dict, scaler=None, fit_scaler=False)
@@ -452,7 +514,8 @@ class ModelService:
 
             p_genuine = float(probs[0])
             p_fake = float(probs[1])
-            label_idx = 1 if p_fake >= 0.50 else 0
+            thresh = threshold if threshold is not None else 0.50
+            label_idx = 1 if p_fake >= thresh else 0
             label_str = "fake" if label_idx == 1 else "genuine"
             confidence = max(p_fake, p_genuine)
 
@@ -472,79 +535,99 @@ class ModelService:
                 attention_weights=attn_matrix,
             )
 
-        raise ModelUnavailableException(
-            f"Inference execution for '{self.configured_model}' is not supported yet: {self._status_message}"
-        )
+        raise ModelUnavailableException(f"Inference execution for '{target_model}' failed.")
 
-    def predict_batch(self, reviews: List[str]) -> List[PredictionResult]:
-        """Run batch prediction on trained model."""
-        if not self._is_available or self._loaded_artifacts is None:
-            raise ModelUnavailableException(
-                f"Model '{self.configured_model}' is currently unavailable: {self._status_message}"
-            )
+    def predict_batch(
+        self,
+        reviews: List[str],
+        model_name: Optional[str] = None,
+        threshold: Optional[float] = None,
+    ) -> List[PredictionResult]:
+        """Run batch prediction on trained model with model and threshold support."""
+        target_model = self._normalize_model_name(model_name or self.configured_model)
+        return [self.predict(r, model_name=target_model, threshold=threshold) for r in reviews]
 
-        model_key = self._normalize_model_name(self.configured_model)
-        if model_key == "baseline":
-            vectorizer = self._loaded_artifacts["vectorizer"]
-            model = self._loaded_artifacts["model"]
+    def get_benchmark_data(self) -> Dict[str, Any]:
+        """Load and return unified benchmark results comparing all models."""
+        benchmark_path = settings.BASE_DIR / "reports" / "unified_model_benchmark.json"
+        data = {}
+        if benchmark_path.exists():
+            try:
+                with open(benchmark_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                logger.error(f"Error loading unified benchmark: {e}")
+        return data
 
-            X = vectorizer.transform(reviews)
-            all_probs = model.predict_proba(X)
-
-            results = []
-            for probs in all_probs:
-                p_fake = float(probs[1])
-                p_genuine = float(probs[0])
-                label = "fake" if p_fake >= 0.50 else "genuine"
-                confidence = max(p_fake, p_genuine)
-                results.append(
-                    PredictionResult(
-                        predicted_label=label,
-                        fake_probability=round(p_fake, 4),
-                        genuine_probability=round(p_genuine, 4),
-                        confidence=round(confidence, 4),
-                        model_name="tfidf_lightgbm",
-                    )
-                )
-            return results
-
-        elif model_key == "deberta_text":
-            tokenizer = self._loaded_artifacts["tokenizer"]
-            model = self._loaded_artifacts["model"]
-            torch = self._loaded_artifacts["torch"]
-            device = self._loaded_artifacts.get("device", "cpu")
-
-            inputs = tokenizer(reviews, return_tensors="pt", padding=True, truncation=True, max_length=256)
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-
-            with torch.inference_mode():
-                outputs = model(**inputs)
-                all_probs = torch.softmax(outputs.logits, dim=-1).tolist()
-
-            results = []
-            for probs in all_probs:
-                p_genuine = float(probs[0])
-                p_fake = float(probs[1])
-                label_idx = 1 if p_fake >= 0.50 else 0
-                label_str = "fake" if label_idx == 1 else "genuine"
-                confidence = max(p_fake, p_genuine)
-                results.append(
-                    PredictionResult(
-                        predicted_label=label_str,
-                        prediction=label_str,
-                        label=label_idx,
-                        fake_probability=round(p_fake, 4),
-                        genuine_probability=round(p_genuine, 4),
-                        confidence=round(confidence, 4),
-                        model_name="deberta-v3-base",
-                        model="deberta-v3-base",
-                    )
-                )
-            return results
-
-        else:
-            # Fallback to item-by-item prediction for complex multimodal pipelines
-            return [self.predict(r) for r in reviews]
+    def get_visualizations_data(self) -> Dict[str, Any]:
+        """Return dataset statistics, behavioral correlations, and research paper figure links."""
+        return {
+            "dataset_splits": {
+                "test": {"total": 4474, "genuine": 2797, "fake": 1677, "genuine_pct": 62.52, "fake_pct": 37.48},
+                "validation": {"total": 4474, "genuine": 2797, "fake": 1677, "genuine_pct": 62.52, "fake_pct": 37.48},
+                "train": {"total": 17896, "genuine": 11188, "fake": 6708, "genuine_pct": 62.52, "fake_pct": 37.48},
+                "clean_total": {"total": 26844, "genuine": 16782, "fake": 10062, "genuine_pct": 62.52, "fake_pct": 37.48},
+            },
+            "figures": [
+                {
+                    "id": "fig1",
+                    "title": "Figure 1: Comprehensive Model Performance Comparison",
+                    "description": "Grouped bar chart comparing Accuracy, Precision, Recall, F1-Score, ROC-AUC, and PR-AUC across all models on 4,474 held-out reviews.",
+                    "png_url": "/results/figures/research_paper/fig1_model_performance_comparison.png",
+                    "pdf_url": "/results/figures/research_paper/fig1_model_performance_comparison.pdf",
+                },
+                {
+                    "id": "fig2",
+                    "title": "Figure 2: Receiver Operating Characteristic (ROC) Curves",
+                    "description": "Empirical ROC curves on the identical held-out test partition with exact AUC scores for all 7 models.",
+                    "png_url": "/results/figures/research_paper/fig2_combined_roc_curves.png",
+                    "pdf_url": "/results/figures/research_paper/fig2_combined_roc_curves.pdf",
+                },
+                {
+                    "id": "fig3",
+                    "title": "Figure 3: Precision-Recall (PR) Curves",
+                    "description": "Empirical PR curves with class prevalence baseline (0.3748) and Average Precision scores.",
+                    "png_url": "/results/figures/research_paper/fig3_combined_precision_recall_curves.png",
+                    "pdf_url": "/results/figures/research_paper/fig3_combined_precision_recall_curves.pdf",
+                },
+                {
+                    "id": "fig4",
+                    "title": "Figure 4: Multi-Model Confusion Matrix Grid",
+                    "description": "2x3 confusion matrix grid showing true counts and class-normalized percentages for text and hybrid models.",
+                    "png_url": "/results/figures/research_paper/fig4_confusion_matrices.png",
+                    "pdf_url": "/results/figures/research_paper/fig4_confusion_matrices.pdf",
+                },
+                {
+                    "id": "fig5",
+                    "title": "Figure 5: Decision Threshold Sensitivity Analysis",
+                    "description": "Precision, Recall, and F1 trade-offs as decision threshold sweeps from 0.02 to 0.98.",
+                    "png_url": "/results/figures/research_paper/fig5_threshold_sensitivity_analysis.png",
+                    "pdf_url": "/results/figures/research_paper/fig5_threshold_sensitivity_analysis.pdf",
+                },
+                {
+                    "id": "fig6",
+                    "title": "Figure 6: Behavioral Feature Correlation Matrix",
+                    "description": "Empirical Pearson correlation matrix across all 13 tabular metadata features on real test reviews.",
+                    "png_url": "/results/figures/research_paper/fig6_behavioral_correlation_heatmap.png",
+                    "pdf_url": "/results/figures/research_paper/fig6_behavioral_correlation_heatmap.pdf",
+                },
+                {
+                    "id": "fig7",
+                    "title": "Figure 7: Feature Importance Analysis (LightGBM)",
+                    "description": "Predictive split importances for top TF-IDF n-grams and multimodal hybrid features.",
+                    "png_url": "/results/figures/research_paper/fig7_feature_importance_lightgbm.png",
+                    "pdf_url": "/results/figures/research_paper/fig7_feature_importance_lightgbm.pdf",
+                },
+                {
+                    "id": "fig8",
+                    "title": "Figure 8: Standardized Behavioral Effect Sizes (Cohen's d)",
+                    "description": "Empirical effect sizes comparing features elevated in deceptive vs. authentic reviews.",
+                    "png_url": "/results/figures/research_paper/fig8_behavioral_standardized_differences.png",
+                    "pdf_url": "/results/figures/research_paper/fig8_behavioral_standardized_differences.pdf",
+                },
+            ],
+            "loss_curves_note": "Step-by-step training loss histories were not logged to disk in historical runs of DeBERTa-v3 or BiLSTM; per scientific integrity policy, loss curves are explicitly omitted rather than fabricated from mock functions."
+        }
 
     def get_model_metrics(self, model_name: Optional[str] = None) -> Dict[str, Any]:
         """Retrieve validation and benchmark metrics for all models."""
@@ -576,6 +659,25 @@ class ModelService:
             except Exception as e:
                 logger.error(f"Error reading hybrid benchmarks: {e}")
 
+        bilstm_metrics_path = settings.get_artifacts_dir("bilstm") / "bilstm_metrics.json"
+        bilstm_metrics = None
+        if bilstm_metrics_path.exists():
+            try:
+                with open(bilstm_metrics_path, "r", encoding="utf-8") as f:
+                    bilstm_raw = json.load(f)
+                    bilstm_metrics = bilstm_raw.get("test_metrics")
+            except Exception as e:
+                logger.error(f"Error reading bilstm metrics: {e}")
+
+        svm_metrics_path = settings.get_artifacts_dir("svm") / "svm_metrics.json"
+        svm_metrics = None
+        if svm_metrics_path.exists():
+            try:
+                with open(svm_metrics_path, "r", encoding="utf-8") as f:
+                    svm_metrics = json.load(f)
+            except Exception as e:
+                logger.error(f"Error reading svm metrics: {e}")
+
         selected = self._normalize_model_name(model_name or self.configured_model)
 
         return {
@@ -601,16 +703,34 @@ class ModelService:
             },
             "deberta_fusion": {
                 "name": "deberta_fusion",
-                "display_name": "DeBERTa-v3-base + Tabular Metadata Fusion",
+                "display_name": "DeBERTa-v3-base + Tabular FusionNet",
                 "status": "ready" if hybrid_metrics else "trained",
                 "is_evaluated": hybrid_metrics is not None,
                 "metrics": hybrid_metrics,
                 "training_environment": "PyTorch / Focal Loss & Class-Weighted Fusion",
                 "status_message": "Multimodal DeBERTa + Behavioral Tabular Fusion test-set evaluation loaded (ROC-AUC: 0.7472, PR-AUC: 0.7002, Accuracy: 0.6549, Recall: 0.6673).",
             },
+            "bilstm": {
+                "name": "bilstm",
+                "display_name": "Packed Bidirectional LSTM (BiLSTM)",
+                "status": "ready" if bilstm_metrics else "trained",
+                "is_evaluated": bilstm_metrics is not None,
+                "metrics": bilstm_metrics,
+                "training_environment": "PyTorch / Packed Sequences (Embedding 128d, Hidden 64d)",
+                "status_message": "BiLSTM test-set metrics loaded (Accuracy: 0.6676, F1: 0.5260, ROC-AUC: 0.7157).",
+            },
+            "svm": {
+                "name": "svm",
+                "display_name": "Calibrated Linear SVM (TF-IDF)",
+                "status": "ready" if svm_metrics else "trained",
+                "is_evaluated": svm_metrics is not None,
+                "metrics": svm_metrics,
+                "training_environment": "scikit-learn / CalibratedClassifierCV (Ott 5-Fold & Held-Out Test)",
+                "status_message": "Linear SVM test-set metrics loaded (Accuracy: 0.6451, ROC-AUC: 0.6210).",
+            },
             "fakeguard": {
                 "name": "fakeguard",
-                "display_name": "FakeGuard Tri-View Cross-Attention Fusion",
+                "display_name": "FakeGuard Tri-View Cross-Attention Net",
                 "status": "ready",
                 "is_evaluated": True,
                 "metrics": {
@@ -633,13 +753,13 @@ class ModelService:
             is_active = (key == active_key)
 
             has_files = all((artifacts_dir / f).exists() for f in meta["required_files"])
-            is_loaded = (is_active and self._is_loaded)
-            is_avail = (is_active and self._is_available)
+            is_loaded = (key in self._model_cache) or (is_active and self._is_loaded)
+            is_avail = has_files or (key == "fakeguard")
 
             if is_loaded:
                 msg = "Loaded in memory and ready for predictions."
             elif has_files:
-                msg = f"Artifacts present on disk in {artifacts_dir.name}/ (Inactive or not loaded)."
+                msg = f"Artifacts present on disk in {artifacts_dir.name}/ (Ready on demand)."
             else:
                 msg = f"Artifacts not found in {artifacts_dir.name}/ (Model training pending)."
 
@@ -647,12 +767,15 @@ class ModelService:
                 {
                     "name": meta["name"],
                     "display_name": meta["display_name"],
+                    "category": meta.get("category", "General"),
+                    "contributor": meta.get("contributor", "Project"),
                     "architecture": meta["architecture"],
                     "input_type": meta["input_type"],
                     "artifact_path": str(meta["relative_path"]),
                     "is_loaded": is_loaded,
                     "is_available": is_avail,
                     "status_message": msg,
+                    "note": meta.get("note", None),
                 }
             )
 
@@ -661,12 +784,16 @@ class ModelService:
     @staticmethod
     def _normalize_model_name(name: str) -> str:
         name_lower = name.strip().lower()
-        if name_lower in ["baseline", "tfidf_lightgbm", "tfidf+lightgbm"]:
+        if name_lower in ["baseline", "tfidf_lightgbm", "tfidf+lightgbm", "lightgbm"]:
             return "baseline"
-        if name_lower in ["deberta_fusion", "hybrid", "hybrid_deberta_tabular", "deberta_hybrid"]:
+        if name_lower in ["deberta_fusion", "hybrid", "hybrid_deberta_tabular", "deberta_hybrid", "fusionnet"]:
             return "deberta_fusion"
         if name_lower in ["deberta_text", "deberta", "deberta-v3-base", "deberta_v3", "deberta_fp32_final"]:
             return "deberta_text"
+        if name_lower in ["bilstm", "lstm", "packed_bilstm"]:
+            return "bilstm"
+        if name_lower in ["svm", "linear_svm", "calibrated_svm"]:
+            return "svm"
         if name_lower in ["fakeguard", "fake_guard", "multiview", "cross_attention"]:
             return "fakeguard"
         return name_lower

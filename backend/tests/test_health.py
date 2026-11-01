@@ -59,8 +59,8 @@ def test_models_list_endpoint(client: TestClient):
     assert response.status_code == 200
     data = response.json()
     assert "active_model" in data
-    assert "models" in data
-    assert data["total_models"] == 3
+    assert data["total_models"] == len(data["models"])
+    assert data["total_models"] >= 3
 
     model_names = [m["name"] for m in data["models"]]
     assert "baseline" in model_names

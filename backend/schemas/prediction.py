@@ -49,6 +49,18 @@ class PredictionRequest(BaseModel):
         description="Optional days elapsed since reviewer's previous review",
         examples=[14.0],
     )
+    model: Optional[str] = Field(
+        None,
+        description="Optional model identifier to use for classification (e.g. deberta_text, deberta_fusion, baseline, bilstm, svm, fakeguard)",
+        examples=["deberta_text"],
+    )
+    threshold: Optional[float] = Field(
+        None,
+        ge=0.01,
+        le=0.99,
+        description="Optional decision threshold for classification",
+        examples=[0.50],
+    )
 
     @field_validator("review_text")
     @classmethod

@@ -1,0 +1,38 @@
+{
+  "model": "Packed BiLSTM Classifier",
+  "embedding_dim": 128,
+  "hidden_dim": 64,
+  "vocab_size": 1090,
+  "validation_metrics": {
+    "threshold": 0.5,
+    "accuracy": 0.6303667262969589,
+    "precision": 0.5075409836065574,
+    "recall": 0.4618138424821002,
+    "f1": 0.4835988753514527,
+    "macro_f1": 0.5978851071864351,
+    "roc_auc": 0.674321546122828,
+    "pr_auc": 0.6028585615948027,
+    "confusion_matrix": {
+      "tn": 2045,
+      "fp": 751,
+      "fn": 902,
+      "tp": 774
+    }
+  },
+  "test_metrics": {
+    "threshold": 0.5,
+    "accuracy": 0.6676352257487707,
+    "precision": 0.565068493150685,
+    "recall": 0.4919499105545617,
+    "f1": 0.5259802358941664,
+    "macro_f1": 0.6350431208725693,
+    "roc_auc": 0.7157196706838765,
+    "pr_auc": 0.6583338852778522,
+    "confusion_matrix": {
+      "tn": 2162,
+      "fp": 635,
+      "fn": 852,
+      "tp": 825
+    }
+  }
+}

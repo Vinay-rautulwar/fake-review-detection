@@ -208,7 +208,10 @@ def main():
     with open(ARTIFACTS_DIR / "bilstm_metrics.json", "w") as f:
         json.dump(results, f, indent=2)
 
-    logger.info("BiLSTM metrics saved.")
+    with open(ARTIFACTS_DIR / "vocab.json", "w", encoding="utf-8") as f:
+        json.dump(vocab, f)
+
+    logger.info("BiLSTM metrics and vocab.json saved.")
 
 
 if __name__ == "__main__":

@@ -34,9 +34,14 @@ class PredictionService:
         metadata = {
             k: v
             for k, v in request.model_dump().items()
-            if k != "review_text" and v is not None
+            if k not in ["review_text", "model", "threshold"] and v is not None
         }
-        result: PredictionResult = self.model_service.predict(request.review_text, metadata)
+        result: PredictionResult = self.model_service.predict(
+            request.review_text,
+            metadata=metadata,
+            model_name=request.model,
+            threshold=request.threshold,
+        )
 
         # 2. Prepare document
         now = datetime.now(timezone.utc)
@@ -71,7 +76,13 @@ class PredictionService:
         )
 
 
-    async def predict_batch(self, file_content: bytes, filename: str) -> BatchPredictionResponse:
+    async def predict_batch(
+        self,
+        file_content: bytes,
+        filename: str,
+        model_name: Optional[str] = None,
+        threshold: Optional[float] = None,
+    ) -> BatchPredictionResponse:
         """Process CSV batch upload, run batch inference, and persist valid predictions."""
         # 1. Validate file extension
         if not filename.lower().endswith(".csv"):
@@ -151,7 +162,7 @@ class PredictionService:
         docs_to_insert = []
 
         if valid_texts:
-            predictions = self.model_service.predict_batch(valid_texts)
+            predictions = self.model_service.predict_batch(valid_texts, model_name=model_name, threshold=threshold)
             for i, pred in enumerate(predictions):
                 original_idx = valid_indices[i]
                 row_data = rows[original_idx]

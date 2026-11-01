@@ -79,14 +79,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/app"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 # Include API v1 router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Mount frontend static directory under /app
+# Mount frontend static directory under /app and results under /results
 from fastapi.staticfiles import StaticFiles
 frontend_dir = settings.BASE_DIR / "frontend"
 if frontend_dir.exists():
     app.mount("/app", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
+
+results_dir = settings.BASE_DIR / "results"
+if results_dir.exists():
+    app.mount("/results", StaticFiles(directory=str(results_dir)), name="results")
 
 
 @app.get("/", tags=["Root"])
@@ -102,6 +117,7 @@ async def root():
         "health_check": f"{settings.API_V1_STR}/health",
         "models_status": f"{settings.API_V1_STR}/models",
         "models_metrics": f"{settings.API_V1_STR}/models/metrics",
+        "models_benchmark": f"{settings.API_V1_STR}/models/benchmark",
         "frontend_dashboard": "/app",
     }
 
@@ -135,8 +151,8 @@ async def direct_predict(request: PredictionRequest):
             detail=f"Model unavailable: {model_service.status_message}",
         )
     try:
-        meta = {k: v for k, v in request.model_dump().items() if k != "review_text" and v is not None}
-        res = model_service.predict(request.review_text, metadata=meta)
+        meta = {k: v for k, v in request.model_dump().items() if k not in ["review_text", "model", "threshold"] and v is not None}
+        res = model_service.predict(request.review_text, metadata=meta, model_name=request.model, threshold=request.threshold)
         return DirectPredictionResponse(
             prediction=res.predicted_label,
             label=res.label,

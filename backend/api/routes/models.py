@@ -27,6 +27,17 @@ async def list_models(
 
 
 @router.get(
+    "/models/benchmark",
+    summary="Get Unified Model Benchmark Results",
+    description="Returns cross-model evaluation metrics (Accuracy, Precision, Recall, F1, ROC-AUC, PR-AUC) across all tested models.",
+)
+async def get_model_benchmark(
+    model_svc: ModelService = Depends(get_model_service),
+):
+    return model_svc.get_benchmark_data()
+
+
+@router.get(
     "/models/metrics",
     response_model=SystemMetricsResponse,
     summary="Get Model Validation Benchmarks & Training Evaluation Metrics",

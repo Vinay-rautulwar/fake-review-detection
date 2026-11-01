@@ -62,9 +62,11 @@ yarn-error.log*
 # Model Artifacts and Binary Weights (keep directories tracked via .gitkeep)
 training/artifacts/*
 !training/artifacts/.gitkeep
+!training/artifacts/**/
 !training/artifacts/**/README.md
 !training/artifacts/**/validation_metrics.json
 !training/artifacts/**/model_config.yaml
+!training/artifacts/**/*.json
 backend/models/*
 !backend/models/.gitkeep
 !backend/models/README.md

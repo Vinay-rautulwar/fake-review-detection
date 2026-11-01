@@ -1,0 +1,8 @@
+{
+  "model_name": "deberta_fusion",
+  "architecture": "DeBERTa-v3 768-dim Embeddings + 13-dim Tabular Metadata Fusion",
+  "best_threshold": 0.26,
+  "best_f1": 0.6048,
+  "roc_auc": 0.7461,
+  "pr_auc": 0.6995
+}

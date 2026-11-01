@@ -93,8 +93,24 @@ class ApiClient {
   }
 
   /**
+   * GET /api/v1/models/benchmark
+   * Retrieve unified multi-model benchmark results across all 10 evaluated models.
+   */
+  async getBenchmarkData() {
+    return this._fetch('/models/benchmark');
+  }
+
+  /**
+   * GET /api/v1/analytics/visualizations
+   * Retrieve dataset statistics, behavioral correlations, and research paper figures.
+   */
+  async getVisualizationsData() {
+    return this._fetch('/analytics/visualizations');
+  }
+
+  /**
    * POST /api/v1/predict
-   * Classify a single review with optional metadata and historical persistence.
+   * Classify a single review with optional metadata, model selection, and decision threshold.
    */
   async predictSingle(payload) {
     return this._fetch('/predict', {
@@ -106,18 +122,22 @@ class ApiClient {
 
   /**
    * POST /predict
-   * Direct text inference endpoint returning clean { prediction, label, fake_probability, genuine_probability, model }.
+   * Direct text inference endpoint returning clean prediction payload.
    */
-  async predictDirect(reviewText) {
+  async predictDirect(reviewText, model = null, threshold = null) {
     const rootUrl = this.baseUrl.replace(/\/api\/v1\/?$/, '');
     const url = `${rootUrl}/predict`;
+    const body = { review_text: reviewText };
+    if (model) body.model = model;
+    if (threshold !== null && threshold !== undefined) body.threshold = threshold;
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({ review_text: reviewText }),
+      body: JSON.stringify(body),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -131,11 +151,13 @@ class ApiClient {
 
   /**
    * POST /api/v1/batch-predict
-   * Upload CSV file for batch classification.
+   * Upload CSV file for batch classification with optional model and threshold controls.
    */
-  async predictBatch(file) {
+  async predictBatch(file, model = null, threshold = null) {
     const formData = new FormData();
     formData.append('file', file);
+    if (model) formData.append('model', model);
+    if (threshold !== null && threshold !== undefined) formData.append('threshold', threshold.toString());
 
     const url = `${this.baseUrl}/batch-predict`;
     const response = await fetch(url, {

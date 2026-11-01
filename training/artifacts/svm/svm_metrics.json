@@ -1,0 +1,42 @@
+{
+  "model": "TF-IDF + Linear SVM (Calibrated)",
+  "ngram_range": [
+    1,
+    2
+  ],
+  "max_features": 15000,
+  "class_weight": "balanced",
+  "train_time_sec": 0.744208812713623,
+  "validation_metrics": {
+    "threshold": 0.5,
+    "accuracy": 0.6475849731663685,
+    "precision": 0.6436781609195402,
+    "recall": 0.13365155131264916,
+    "f1": 0.22134387351778656,
+    "macro_f1": 0.49679910438895103,
+    "roc_auc": 0.6126025800581123,
+    "pr_auc": 0.5142712651147855,
+    "confusion_matrix": {
+      "tn": 2672,
+      "fp": 124,
+      "fn": 1452,
+      "tp": 224
+    }
+  },
+  "test_metrics": {
+    "threshold": 0.5,
+    "accuracy": 0.6450603486812696,
+    "precision": 0.6344410876132931,
+    "recall": 0.1252236135957066,
+    "f1": 0.20916334661354583,
+    "macro_f1": 0.4901724514047556,
+    "roc_auc": 0.621000138789132,
+    "pr_auc": 0.516704442875717,
+    "confusion_matrix": {
+      "tn": 2676,
+      "fp": 121,
+      "fn": 1467,
+      "tp": 210
+    }
+  }
+}

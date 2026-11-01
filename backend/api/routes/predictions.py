@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from typing import Optional
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from backend.api.deps import get_prediction_service
 from backend.db.mongodb import DatabaseUnavailableException
@@ -43,11 +44,18 @@ async def predict_single_review(
 )
 async def predict_batch_reviews(
     file: UploadFile = File(..., description="CSV file containing review_text column"),
+    model: Optional[str] = Form(None, description="Target model name"),
+    threshold: Optional[float] = Form(None, description="Classification threshold"),
     service: PredictionService = Depends(get_prediction_service),
 ) -> BatchPredictionResponse:
     try:
         content = await file.read()
-        return await service.predict_batch(file_content=content, filename=file.filename or "upload.csv")
+        return await service.predict_batch(
+            file_content=content,
+            filename=file.filename or "upload.csv",
+            model_name=model,
+            threshold=threshold,
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
