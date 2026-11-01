@@ -66,6 +66,7 @@ class DirectPredictionResponse(BaseModel):
     fake_probability: float = Field(..., description="Estimated probability of review being fraudulent (0.0 to 1.0)")
     genuine_probability: float = Field(..., description="Estimated probability of review being genuine (0.0 to 1.0)")
     model: str = Field(default="deberta-v3-base", description="Model architecture identifier")
+    attention_weights: Optional[List[List[float]]] = Field(None, description="Multi-view cross-attention interaction weights")
 
 
 class PredictionResponse(BaseModel):
@@ -83,6 +84,7 @@ class PredictionResponse(BaseModel):
     model: Optional[str] = Field(None, description="Model identifier alias")
     timestamp: datetime = Field(..., description="UTC timestamp of the prediction")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional review metadata provided")
+    attention_weights: Optional[List[List[float]]] = Field(None, description="Multi-view cross-attention interaction weights (Text, Behavior, Graph)")
 
 
 

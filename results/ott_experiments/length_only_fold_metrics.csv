@@ -1,0 +1,6 @@
+fold,n_train,n_test,test_hotels,accuracy,macro_f1
+1,1276,320,"amalfi,hilton,knickerbocker,talbott",0.56875,0.5676691729323309
+2,1276,320,"allegro,hardrock,james,swissotel",0.5375,0.537337345160408
+3,1277,319,"fairmont,intercontinental,monaco,sofitel",0.45141065830721006,0.45063326018284344
+4,1277,319,"affinia,conrad,hyatt,sheraton",0.5203761755485894,0.5200743384760613
+5,1278,318,"ambassador,homewood,omni,palmer",0.4779874213836478,0.47780151946818616

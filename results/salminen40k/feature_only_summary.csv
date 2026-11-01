@@ -1,0 +1,5 @@
+protocol,feature,accuracy_mean,accuracy_std,macro_f1_mean,macro_f1_std
+stratified_random_5fold,rating,0.493998,0.003503,0.488098,0.003680
+stratified_random_5fold,log_word_count,0.532310,0.004795,0.531063,0.004680
+heldout_category_5fold,rating,0.501150,0.003316,0.463133,0.072586
+heldout_category_5fold,log_word_count,0.533015,0.002458,0.530559,0.003580

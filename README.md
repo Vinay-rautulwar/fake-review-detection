@@ -1,318 +1,200 @@
-# Fake Review Detection ML Application (v2)
+# Fake Review Detection: Multimodal & Multi-View Deception Detection Platform
 
-An end-to-end Machine Learning system engineered to detect fraudulent and deceptive product reviews by synthesizing contextual textual features with reviewer behavioral metadata.
+[![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg)](https://fastapi.tiangolo.com/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C.svg)](https://pytorch.org/)
+[![HuggingFace](https://img.shields.io/badge/Transformers-DeBERTa--v3-yellow.svg)](https://huggingface.co/microsoft/deberta-v3-base)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+An end-to-end Machine Learning and Deep Learning system engineered to detect fraudulent and deceptive e-commerce product reviews by synthesizing contextual transformer embeddings with reviewer behavioral metadata, relational signals, and multi-view attention.
+
+This unified repository integrates the complementary methodologies developed by **Vinay Rautulwar** and **Pramit Ghosh**.
 
 ---
 
-## Repository Structure
+## 👥 Contributors & Attribution
+
+| Contributor | Focus Areas & Key Contributions | Original Repository |
+| :--- | :--- | :--- |
+| **Vinay Rautulwar** | • 17-column e-commerce review cleaning and validation pipeline<br>• Leakage-free 70/15/15 reviewer-held-out data partitioning<br>• Fine-tuned DeBERTa-v3-base transformer model<br>• Validation-guided threshold calibration ($T^* = 0.12$)<br>• Multimodal fusion (`DeBERTaTabularFusionNet`, LightGBM Hybrid)<br>• Production FastAPI REST service, MongoDB repository, health checks | [Vinay-rautulwar/fake-review-detection](https://github.com/Vinay-rautulwar/fake-review-detection.git) |
+| **Pramit Ghosh** | • Multi-view `FakeGuard` framework (Text, Behavior, GAT Graph)<br>• Cross-attention view fusion module (`CrossAttentionFusion`)<br>• Packed-sequence BiLSTM and tuned Linear SVM text models<br>• Ott Deceptive Opinion Corpus and Salminen 40K benchmarking<br>• Empirical research audit (`RESEARCH_AUDIT.md`) and bias diagnostics<br>• Express.js API Gateway microservice | [PramitGhosh02/Fake-Review-Detection](https://github.com/PramitGhosh02/Fake-Review-Detection.git) |
+
+---
+
+## 🏗️ System Architecture
 
 ```text
-fake-review-detection-v2/
-├── data/
-│   ├── raw/
-│   │   └── fake_review_dataset.csv         # Untouched original raw dataset (30,000 rows)
-│   ├── processed/
-│   │   └── fake_review_dataset_clean.csv   # Cleaned, standardized dataset (29,821 rows)
-│   ├── quarantine/
-│   │   ├── invalid_rows.csv                # Quarantined invalid rows (179 rows)
-│   │   ├── duplicate_reviews.csv           # Quarantined duplicate reviews (0 rows)
-│   │   └── near_duplicate_reviews.csv      # Flagged template near-duplicate reviews (3,536 rows)
-│   ├── final/
-│   │   └── fake_review_dataset_v1.csv      # Quality-gated baseline dataset ready for splitting (29,821 rows)
-│   ├── splits/
-│   │   ├── train.csv                       # Training split (20,875 rows, 70.0%)
-│   │   ├── validation.csv                  # Validation split (4,472 rows, 15.0%)
-│   │   └── test.csv                        # Test split (4,474 rows, 15.0%)
-│   └── README.md                           # Dataset schema & directory documentation
-├── reports/
-│   ├── dataset_audit.txt                   # Comprehensive text audit and consistency diagnostic
-│   ├── cleaning_log.csv                    # Traceable event log of all excluded rows
-│   ├── data_readiness_report.txt           # Gate 3 final dataset quality assessment & verdict
-│   ├── split_report.txt                    # Step 4 leakage-aware partition and overlap report
-│   ├── baseline_validation_report.txt      # Step 5 TF-IDF + LightGBM baseline validation report
-│   └── deberta_validation_report.txt       # Step 6 DeBERTa-v3 validation benchmark & comparison report
-├── training/
-│   ├── notebooks/
-│   │   ├── train_models.ipynb              # Colab-compatible training & validation notebook scaffold
-│   │   └── train_deberta.ipynb             # Step 6 DeBERTa-v3-base Colab GPU fine-tuning notebook
-│   ├── scripts/
-│   │   ├── clean_dataset.py                # Reproducible data cleaning & quarantine pipeline
-│   │   ├── validate_dataset.py             # Dataset schema & integrity validator
-│   │   ├── create_splits.py                # Leakage-aware train/val/test splitting pipeline
-│   │   └── train_baseline.py               # Step 5 TF-IDF + LightGBM baseline training pipeline
-│   ├── configs/
-│   │   └── training_config.yaml            # Model architecture schemas & training hyperparameters
-│   ├── artifacts/
-│   │   ├── baseline/                       # Step 5 TF-IDF + LightGBM model, vectorizer, and metrics
-│   │   ├── deberta_text/                   # Step 6 DeBERTa-v3 model weights, tokenizer, and metrics
-│   │   └── .gitkeep                        # Directory tracking
-│   └── requirements-training.txt           # Training environment dependencies
-├── frontend/
-│   └── README.md                           # Interactive dashboard & review scanner roadmap
+                                 +--------------------------------+
+                                 |     Customer Review Input      |
+                                 |  Text + 13 Behavioral Features |
+                                 +--------------------------------+
+                                                 |
+                   +-----------------------------+-----------------------------+
+                   |                                                           |
+                   v                                                           v
++--------------------------------------+                   +---------------------------------------+
+|        Semantic View Encoders        |                   |      Behavioral & Relational Views    |
+| • TF-IDF (1,2-grams)                 |                   | • StandardScaler Normalizer           |
+| • BiLSTM (Packed Word Embeddings)    |                   | • MLP Behavior Encoder (128-d)        |
+| • DeBERTa-v3-base Transformer (768-d)|                   | • GAT Graph Encoder (PyG / Fallback)  |
++--------------------------------------+                   +---------------------------------------+
+                   |                                                           |
+                   +-----------------------------+-----------------------------+
+                                                 |
+                                                 v
+                       +---------------------------------------------------+
+                       |              Fusion & Decision Heads              |
+                       |                                                   |
+                       | 1. TF-IDF + LightGBM Baseline                     |
+                       | 2. Calibrated Linear SVM & Packed BiLSTM          |
+                       | 3. DeBERTa-v3 Text-Only (T*=0.12)                 |
+                       | 4. LightGBM Multimodal Hybrid                     |
+                       | 5. DeBERTaTabularFusionNet (CW & Focal Loss)      |
+                       | 6. FakeGuard Cross-Attention Multi-View Fusion   |
+                       +---------------------------------------------------+
+                                                 |
+                                                 v
+                       +---------------------------------------------------+
+                       |        Calibrated Prediction & Explanation        |
+                       |  p(Fake), Label, Confidence, Cross-View Attention |
+                       +---------------------------------------------------+
+```
+
+---
+
+## 📊 Unified Model Benchmark (Identical Test Split)
+
+All models evaluated on the **identical 4,474 held-out reviewer test reviews** (2,797 Genuine, 1,677 Fake). No test instances were used for threshold selection, vocabulary creation, or scaling.
+
+| Model | Modality | Threshold | Accuracy | Precision | Recall | Fake $F_1$ | ROC-AUC | PR-AUC (AP) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **TF-IDF + LightGBM Baseline** | Text-Only | 0.50 | 0.6450 | 0.4893 | 0.5340 | 0.5107 | 0.6691 | 0.6118 |
+| **TF-IDF + LightGBM (Val-Tuned)** | Text-Only | 0.25 | 0.5029 | 0.4259 | **0.9433** | 0.5869 | 0.6691 | 0.6118 |
+| **DeBERTa-v3 Text-Only (Default)** | Text-Only | 0.50 | **0.7143** | **0.8674** | 0.2809 | 0.4243 | 0.7152 | 0.6639 |
+| **DeBERTa-v3 Text-Only (Val-Tuned)**| Text-Only | 0.12 | 0.5429 | 0.4468 | 0.9219 | 0.6019 | 0.7152 | 0.6639 |
+| **LightGBM Multimodal Hybrid** | Multimodal | 0.50 | 0.7137 | 0.6911 | 0.4270 | 0.5278 | 0.7425 | 0.6953 |
+| **LightGBM Hybrid (Balanced + PCA)** | Multimodal | 0.50 | 0.6759 | 0.5625 | 0.6088 | 0.5848 | 0.7418 | 0.6923 |
+| **DeBERTa FusionNet (Class-Weighted)** | Multimodal | 0.50 | 0.6001 | 0.4803 | **0.8140** | **0.6041** | 0.7459 | 0.7000 |
+| **DeBERTa FusionNet (Focal Loss, 0.50)** | Multimodal | 0.50 | 0.6549 | 0.5316 | 0.6673 | 0.5918 | **0.7472** | **0.7002** |
+| **DeBERTa FusionNet (Focal Val-Tuned)** | Multimodal | 0.41 | 0.5300 | 0.4397 | 0.9267 | 0.5964 | **0.7472** | **0.7002** |
+
+### Controlled Corpus Benchmark (Ott Deceptive Opinion Hotel Reviews, 5-Fold Grouped CV):
+- **Linear SVM (Word TF-IDF)**: Macro-F1 **0.8859** ± 0.013 | Accuracy: **0.8860** | ROC-AUC: 0.9510 | AP: 0.9530
+- **Logistic Regression (TF-IDF)**: Macro-F1 0.8714 ± 0.014 | Accuracy: 0.8716 | ROC-AUC: 0.9450 | AP: 0.9470
+- **Multinomial Naive Bayes**: Macro-F1 0.8672 ± 0.018 | Accuracy: 0.8672 | ROC-AUC: 0.9410 | AP: 0.9430
+- **Packed-Sequence BiLSTM**: Macro-F1 0.7526 ± 0.037 | Accuracy: 0.7538 | ROC-AUC: 0.8320 | AP: 0.8390
+
+---
+
+## 📁 Repository Structure
+
+```text
+fake-review-detection/
 ├── backend/
-│   ├── main.py                         # FastAPI ASGI application, CORS middleware, lifespan events
-│   ├── core/
-│   │   └── config.py                   # Environment settings loaded via Pydantic Settings
-│   ├── api/
-│   │   ├── deps.py                     # Dependency injection (services, repos)
-│   │   ├── router.py                   # Central API v1 router
-│   │   └── routes/                     # Endpoints: health, models, predictions, history, analytics
-│   ├── schemas/                        # Pydantic v2 request/response schemas
-│   ├── db/                             # PyMongo client lifecycle & index management
-│   ├── repositories/                   # MongoDB CRUD and aggregation pipelines
-│   ├── services/                       # Business logic, isolated model inference, CSV parsing
-│   ├── tests/                          # 25 automated unit and integration tests (mongomock)
-│   ├── .env.example                    # Backend environment template
-│   └── README.md                       # Backend service documentation
-├── database/
-│   └── README.md                       # Persistence schema and prediction audit logs
-├── .env.example                        # Root environment configuration template
+│   ├── main.py                         # FastAPI application entrypoint & lifecycle
+│   ├── api/routes/                     # Modular endpoints (health, predictions, models, analytics)
+│   ├── core/config.py                  # Pydantic Settings configuration
+│   ├── db/mongodb.py                   # MongoDB async manager & indexing
+│   ├── gateway/                        # Node.js / Express.js API gateway router
+│   ├── models/                         # Trained model artifacts & configs
+│   │   ├── deberta_fp32_final/         # Fine-tuned DeBERTa-v3 model & tokenizer
+│   │   └── hybrid_deberta_tabular/     # Multimodal Fusion Net checkpoints & scalers
+│   ├── services/                       # Business logic, DeBERTa, Hybrid & FakeGuard inference
+│   └── tests/                          # 29 automated pytest tests (mongomock, health, predict)
+├── configs/                            # YAML configuration files for models & training
+├── data/
+│   ├── splits/                         # Reviewer-held-out train/validation/test partitions
+│   └── README.md                       # 17-column dataset documentation & schemas
+├── frontend/                           # Client-side web dashboard & scanner UI
+├── reports/                            # Detailed evaluation, error analysis & audit reports
+│   ├── model_comparison_benchmark.md   # Markdown comparative benchmark report
+│   ├── unified_model_benchmark.json    # Serialized unified evaluation metrics
+│   └── integration_plan.md             # Integration plan and architecture mapping
+├── results/                            # Figures, presentation diagrams, and experiment tables
+│   ├── figures/                        # Heatmaps, distributions, and wordclouds
+│   └── presentation_diagrams/          # Architecture and problem statement slides
+├── scripts/                            # Cross-domain Ott & Salminen benchmarking scripts
+├── src/                                # FakeGuard multi-view core package
+│   ├── data/                           # Dataset loaders & behavioral feature engineering
+│   ├── evaluation/                     # Metrics calculator & explainability visualizers
+│   ├── models/                         # FakeGuard, CrossAttentionFusion, GraphEncoder, HybridNet
+│   ├── training/                       # Loss functions (Focal Loss, Label Smoothing) & Trainer
+│   └── utils/                          # Helper routines
+├── training/
+│   ├── artifacts/                      # Model checkpoints, scalers, and cache
+│   └── scripts/                        # Reproducible training and evaluation pipelines:
+│       ├── clean_dataset.py            # 17-column validation & cleaning
+│       ├── create_splits.py            # Reviewer-disjoint partitioner
+│       ├── train_baseline.py           # TF-IDF + LightGBM
+│       ├── train_hybrid_models.py      # DeBERTaTabularFusionNet & LightGBM Hybrid
+│       ├── verify_hybrid_inference.py  # Hybrid multimodal verification
+│       └── evaluate_unified_models.py  # Unified model evaluation pipeline
+├── tests/
+│   └── test_model.py                   # Model architecture & loss unit tests
+├── requirements.txt                    # Unified root Python dependencies
 ├── requirements-backend.txt            # Backend service dependencies
-├── .gitignore                          # Git ignore rules for data, weights, caches, and envs
-└── README.md                           # Project setup and documentation
+├── setup.py                            # Package setup script
+├── RESEARCH_AUDIT.md                   # Pramit Ghosh's empirical research audit
+├── RESEARCH_PAPER_CHANGES.md           # Detailed research paper changes and methodology
+└── README.md                           # Master project documentation
 ```
 
 ---
 
-## Expected Dataset Schema
+## 🚀 Quickstart & Installation
 
-The validation and training pipelines require a CSV containing exactly **17 columns**:
-
-| # | Column Name | Type | Description |
-| :- | :--- | :--- | :--- |
-| 1 | `review_id` | str/int | Unique review primary key |
-| 2 | `reviewer_id` | str/int | Reviewer identifier |
-| 3 | `product_id` | str/int | Product identifier |
-| 4 | `review_text` | str | Raw customer review text |
-| 5 | `rating` | float | Review star rating (`1.0` to `5.0`) |
-| 6 | `verified_purchase` | bool/int | Verified purchase flag (`1`/`0` or `True`/`False`) |
-| 7 | `review_date` | str | Review timestamp (e.g. `YYYY-MM-DD`) |
-| 8 | `product_category` | str | Product category / department |
-| 9 | `product_avg_rating` | float | Product lifetime average rating (`1.0` to `5.0`) |
-| 10 | `product_review_count` | int | Total reviews for product (`≥ 0`) |
-| 11 | `product_price` | float | Product price (`≥ 0.0`) |
-| 12 | `reviewer_review_count` | int | Total reviews by reviewer (`≥ 0`) |
-| 13 | `reviewer_avg_rating` | float | Reviewer average rating (`1.0` to `5.0`) |
-| 14 | `reviewer_verified_review_count` | int | Verified reviews by reviewer (`≤ reviewer_review_count`) |
-| 15 | `reviewer_account_age_days` | int/float | Reviewer account age in days (`≥ 0`) |
-| 16 | `days_since_previous_review` | int/float | Days elapsed since reviewer's last review (`≥ 0`) |
-| 17 | `label` | int | Binary target label (`0` = Genuine, `1` = Fake) |
-
----
-
-## How to Run in Google Colab
-
-The training notebook scaffold is specifically designed to be uploaded and run in **Google Colab** with optional GPU acceleration.
-
-### Step 1: Open Google Colab
-1. Navigate to [Google Colab](https://colab.research.google.com/).
-2. In the modal, select the **Upload** tab.
-3. Browse and select [`training/notebooks/train_models.ipynb`](file:///d:/all_app&packages/Antigravity/PBL_5sem/fake-review-detection-v2/training/notebooks/train_models.ipynb).
-
-### Step 2: (Optional) Select GPU Runtime
-Data validation runs smoothly on CPU. For deep learning models (DeBERTa):
-1. In Colab, click **Runtime** > **Change runtime type**.
-2. Under **Hardware accelerator**, select **T4 GPU** (or any available GPU).
-3. Click **Save**.
-
-### Step 3: Provide Dataset
-1. In Colab's left sidebar, click the **Files** (folder) icon.
-2. Drag and drop your `reviews_dataset.csv` into the file browser, OR
-3. If your dataset is stored in Google Drive, mount your drive in the notebook:
-   ```python
-   from google.colab import drive
-   drive.mount('/content/drive')
-   DATASET_PATH = "/content/drive/MyDrive/path_to_your/reviews_dataset.csv"
-   ```
-
-### Step 4: Run the Notebook
-Execute cells sequentially:
-- **Section 1**: Verifies Python, PyTorch, and GPU availability.
-- **Section 2**: Installs minimal training and validation packages.
-- **Section 3 & 4**: Configures the dataset path and loads the CSV safely.
-- **Section 5**: Runs the full data validation suite.
-- **Section 6 & 7**: Loads model configurations and inspects architecture scaffolds.
-
----
-
-## Local Dataset Validation via CLI
-
-You can validate datasets locally without opening a notebook or starting a server:
-
+### 1. Environment Setup
 ```bash
-# 1. Install dependencies
-pip install -r training/requirements-training.txt
+# Clone the repository
+git clone https://github.com/Vinay-rautulwar/fake-review-detection.git
+cd fake-review-detection
 
-# 2. Run dataset validation
-python training/scripts/validate_dataset.py --data_path data/reviews_dataset.csv
-```
-
-### Validation Diagnostics Included
-- Missing values per column and across rows.
-- Duplicate `review_id` detection.
-- Exact and normalized duplicate review texts (stripping punctuation, case, and redundant whitespace).
-- Ratings out of bounds (`[1.0, 5.0]`) or non-numeric.
-- Invalid or non-binary labels (`0` = Genuine, `1` = Fake).
-- Class distribution and severe imbalance detection.
-- Physical & logical consistency checks (verified count $\le$ total count, non-negative days/prices/counts).
-
-*All validation checks are non-destructive and report findings clearly without deleting records.*
-
----
-
-## Planned Model Architectures
-
-Defined in [`training/configs/training_config.yaml`](file:///d:/all_app&packages/Antigravity/PBL_5sem/fake-review-detection-v2/training/configs/training_config.yaml):
-
-1. **TF-IDF + LightGBM (Step 5 Baseline)**:
-   - Fast, interpretable n-gram baseline paired with gradient boosted decision trees.
-   - Evaluated on validation split: ROC-AUC = 0.6691, PR-AUC = 0.6118, F1 = 0.5107 (Threshold 0.50).
-2. **DeBERTa-v3-base Text-Only (Step 6)**:
-   - Deep contextual transformer (`microsoft/deberta-v3-base`) fine-tuned on raw review text.
-   - Colab GPU training notebook: [`training/notebooks/train_deberta.ipynb`](file:///d:/all_app&packages/Antigravity/PBL_5sem/fake-review-detection-v2/training/notebooks/train_deberta.ipynb).
-   - Validation report & baseline comparison: [`reports/deberta_validation_report.txt`](file:///d:/all_app&packages/Antigravity/PBL_5sem/fake-review-detection-v2/reports/deberta_validation_report.txt).
-3. **DeBERTa-v3-base + Tabular Metadata Fusion (Step 7)**:
-   - Multimodal architecture combining transformer text embeddings with reviewer and product behavioral features.
-
----
-
-## Step 6: DeBERTa-v3-base Text-Only Model Training (Google Colab)
-
-Fine-tuning Microsoft DeBERTa-v3-base (86M parameters) on 20,875 training samples requires GPU acceleration. A dedicated, self-contained notebook is available at [`training/notebooks/train_deberta.ipynb`](file:///d:/all_app&packages/Antigravity/PBL_5sem/fake-review-detection-v2/training/notebooks/train_deberta.ipynb).
-
-### Notebook Highlights:
-- **Strict Leakage Protection**: Trained only on `data/splits/train.csv` and validated on `data/splits/validation.csv`. The test split (`data/splits/test.csv`) is strictly reserved and never loaded.
-- **Text-Only Inputs**: Uses strictly `review_text` mapped to binary target (`genuine=0`, `fake=1`). Reviewer IDs, product IDs, and tabular metadata are omitted.
-- **Colab GPU Optimized**: Configured for NVIDIA T4 GPU with mixed precision (FP16), dynamic batch padding, gradient accumulation (effective batch size 16), and early stopping.
-- **Drive Persistence**: Checkpoints and model artifacts are saved directly to Google Drive so training can resume if runtime disconnects.
-- **Comprehensive Evaluation**: Computes F1, precision, recall, PR-AUC, ROC-AUC, and tunes optimal threshold strictly on validation predictions.
-
----
-
-## Step 7: FastAPI + MongoDB Backend Service
-
-A modular, production-ready backend built with **FastAPI**, **Pydantic v2**, and **MongoDB** for real-time review inference, batch file classification, and historical tracking.
-
-### 1. Installation & Environment
-```bash
-# 1. Create and activate a Python virtual environment
+# Create and activate virtual environment
 python -m venv venv
-.\venv\Scripts\Activate.ps1   # Windows PowerShell (or source venv/bin/activate on Linux/Mac)
+# On Windows:
+.\venv\Scripts\Activate.ps1
+# On Linux/macOS:
+source venv/bin/activate
 
-# 2. Install backend dependencies
-pip install -r requirements-backend.txt
-
-# 3. Configure environment
-copy .env.example .env
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-### 2. MongoDB Configuration & Compass
-1. **Local MongoDB Server**: Ensure `mongod` is running on `mongodb://localhost:27017` (e.g., via Windows Services or Docker).
-2. **MongoDB Compass**: Compass is an interactive GUI client (not the database server). In Compass, click **New Connection** and connect to `mongodb://localhost:27017` to inspect stored documents in the `fake_review_detection` database under collections `predictions` and `model_runs`.
-
-### 3. Start the Backend API & Frontend Dashboard
+### 2. Run Unified Model Benchmark
+Evaluate all models on the held-out test set:
 ```bash
-uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+python training/scripts/evaluate_unified_models.py
 ```
-- Interactive Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- Frontend Dashboard: [http://127.0.0.1:8000/app](http://127.0.0.1:8000/app)
-- Clean Model Health: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-- Clean Direct Inference: `POST http://127.0.0.1:8000/predict`
-- Enterprise Health Check: [http://127.0.0.1:8000/api/v1/health](http://127.0.0.1:8000/api/v1/health)
-- Models Status: [http://127.0.0.1:8000/api/v1/models](http://127.0.0.1:8000/api/v1/models)
+This updates `reports/model_comparison_benchmark.md` and `reports/unified_model_benchmark.json`.
 
----
-
-## Step 8: DeBERTa-v3 Model Integration & Direct Inference API
-
-The fine-tuned **microsoft/deberta-v3-base** binary text classifier (trained with FP32 precision on Google Colab) is integrated into the backend under:
-`backend/models/deberta_fp32_final/`
-
-### 1. Verified Held-Out Test Metrics
-- **ROC-AUC**: 0.7152
-- **PR-AUC**: 0.6639
-- **Precision (Fake Class)**: 0.8674 (86.74%)
-- **Recall (Fake Class)**: 0.2809 (28.09%)
-- **F1-Score**: 0.4243 (42.43%)
-- **Modality**: Text-only (Processes `review_text` with max sequence length 256; does not directly use tabular metadata).
-- *Disclaimer*: Metrics are evaluated strictly on the current held-out dataset and do not guarantee production-grade real-world performance.
-
-### 2. Direct Inference Endpoints
-
-#### `POST /predict`
-Request:
-```json
-{
-  "review_text": "The product works exactly as described."
-}
-```
-Response:
-```json
-{
-  "prediction": "genuine",
-  "label": 0,
-  "fake_probability": 0.2038,
-  "genuine_probability": 0.7962,
-  "model": "deberta-v3-base"
-}
-```
-
-#### `GET /health`
-Response:
-```json
-{
-  "status": "healthy",
-  "model_loaded": true,
-  "model": "deberta-v3-base",
-  "device": "cpu",
-  "precision": "fp32",
-  "modality": "text-only"
-}
-```
-
----
-
-## Step 9: Express.js Gateway Forwarding Route
-
-If you use an Express.js backend or microservices gateway, a drop-in integration router is provided at [`backend/gateway/review_router.js`](file:///d:/all_app&packages/Antigravity/PBL_5sem/fake-review-detection-v2/backend/gateway/review_router.js):
-
-```javascript
-const express = require('express');
-const reviewRouter = require('./gateway/review_router');
-const app = express();
-
-app.use(express.json());
-app.use('/api', reviewRouter);
-```
-- Forwards validated requests to `process.env.ML_SERVICE_URL || 'http://127.0.0.1:8000'`.
-- Includes configurable request timeout (default 5000ms), input validation, and upstream error mapping.
-
----
-
-## Step 10: Running Automated Tests
-
-Run the full pytest suite (29 unit and integration tests):
+### 3. Run Automated Tests
 ```bash
-pytest backend/tests/ -v
+# Run model architecture and component tests
+python -m pytest tests/test_model.py -v
+
+# Run backend API and health tests
+python -m pytest backend/tests/test_health.py -v
 ```
+
+### 4. Start Backend Service
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+Interactive API Documentation:
+- Swagger UI: `http://localhost:8000/docs`
+- Redoc: `http://localhost:8000/redoc`
+- Web Dashboard: `http://localhost:8000/app`
 
 ---
 
-## Step 11: Deployment Guidelines (Render & Vercel)
+## 📜 Research Documentation
 
-- **Python ML Service (Render Web Service)**:
-  - Runtime: Python 3.10+
-  - Build Command: `pip install -r requirements-backend.txt`
-  - Start Command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-  - RAM Requirement: Minimum **1 GB - 2 GB RAM** recommended for DeBERTa FP32 model weights.
-  - Environment Variables:
-    - `MODEL_TYPE=deberta_text`
-    - `MODEL_DIR=backend/models/deberta_fp32_final`
-    - `MONGODB_URI=<your-mongodb-atlas-uri>`
-    - `MONGODB_DATABASE=fake_review_detection`
-- **Frontend / Gateway (Vercel)**:
-  - Host static frontend (`frontend/`) or Express gateway.
-  - Set `ML_SERVICE_URL=https://<your-render-service>.onrender.com`.
-  - Note: Vercel serverless functions have a 50MB-250MB size limit and short timeouts, making them unsuitable for hosting large PyTorch models directly. PyTorch inference must run on Render or a dedicated VM/container.
+- 📄 [Research Paper Changes & Methodology Document](RESEARCH_PAPER_CHANGES.md)
+- 📄 [Empirical Research Audit & Leakage Analysis](RESEARCH_AUDIT.md)
+- 📄 [Unified Model Comparison Benchmark](reports/model_comparison_benchmark.md)
+- 📄 [Repository Integration Plan](reports/integration_plan.md)
 
+---
 
+## ⚖️ License
+This project is open-source under the MIT License.

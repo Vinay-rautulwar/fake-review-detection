@@ -48,6 +48,7 @@ class PredictionService:
             "model_name": result.model_name,
             "timestamp": now,
             "metadata": metadata if metadata else None,
+            "attention_weights": getattr(result, "attention_weights", None),
         }
 
         # 3. Persist document to database without blocking event loop
@@ -66,6 +67,7 @@ class PredictionService:
             model=result.model_name,
             timestamp=now,
             metadata=metadata if metadata else None,
+            attention_weights=getattr(result, "attention_weights", None),
         )
 
 

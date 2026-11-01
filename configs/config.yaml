@@ -1,0 +1,56 @@
+data:
+  dataset: "yelp_chi"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  max_seq_length: 256
+  batch_size: 32
+  num_workers: 4
+
+model:
+  text_encoder:
+    name: "bert-base-uncased"
+    hidden_dim: 768
+    fine_tune: true
+    dropout: 0.1
+  behavior_encoder:
+    input_dim: 15
+    hidden_dims: [128, 128]
+    dropout: 0.3
+  graph_encoder:
+    hidden_dim: 128
+    num_heads: 4
+    num_layers: 2
+    dropout: 0.2
+  fusion:
+    projected_dim: 128
+    num_heads: 4
+    dropout: 0.2
+  num_classes: 2
+
+training:
+  epochs: 20
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_steps: 500
+  scheduler: "cosine"
+  early_stopping_patience: 5
+  gradient_clip: 1.0
+  mixed_precision: true
+  seed: 42
+  device: "auto"
+
+logging:
+  log_dir: "results/logs"
+  checkpoint_dir: "results/checkpoints"
+  use_tensorboard: true
+  use_wandb: false
+  wandb_project: "fakeguard"
+  log_every_n_steps: 50
+
+evaluation:
+  metrics: ["accuracy", "precision", "recall", "f1", "auc_roc", "auc_pr"]
+  save_predictions: true
+  generate_plots: true

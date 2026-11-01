@@ -1,0 +1,59 @@
+{
+  "dataset_file": "data\\datasets\\deceptive-opinion.csv",
+  "dataset_sha256": "e98f9f9497fb9e056b7f5870b2fd551e706dcca8de3fd8269f9f1f0de71e3a77",
+  "task": "deceptive (1) versus truthful (0) hotel review text classification",
+  "raw_rows": 1600,
+  "rows_after_exact_normalized_text_deduplication": 1596,
+  "duplicates_removed": 4,
+  "labels_after_deduplication": {
+    "truthful_0": 796,
+    "deceptive_1": 800
+  },
+  "groups": {
+    "name": "hotel",
+    "count": 20
+  },
+  "random_seed": 42,
+  "protocols": {
+    "stratified_random_5fold": "StratifiedKFold(shuffle=True, random_state=42); hotel overlap is allowed",
+    "heldout_hotel_5fold": "GroupKFold(5); no hotel appears in both train and test within a fold"
+  },
+  "text_pipeline": {
+    "features": "word TF-IDF",
+    "ngram_range": [
+      1,
+      2
+    ],
+    "min_df": 2,
+    "max_features": 10000,
+    "sublinear_tf": true,
+    "stop_words": null,
+    "no_behavior_or_graph_features": true
+  },
+  "models": [
+    "LogisticRegression(C=1,class_weight=balanced,max_iter=2000)",
+    "LinearSVC(C=1,class_weight=balanced)",
+    "MultinomialNB(alpha=0.5)",
+    "MLPClassifier(hidden_layer_sizes=(32,),alpha=1e-4,batch_size=64,learning_rate_init=1e-3,max_iter=100,early_stopping=True,n_iter_no_change=15)"
+  ],
+  "metrics": [
+    "accuracy",
+    "macro_f1",
+    "fake_precision",
+    "fake_recall",
+    "fake_f1",
+    "roc_auc",
+    "average_precision"
+  ],
+  "python": "3.12.10",
+  "scikit_learn": "1.9.0",
+  "pytorch": "2.15.0.dev20260823+cu130",
+  "cuda_available": true,
+  "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "run_time_utc": "2026-10-29T14:39:19.049078+00:00",
+  "interpretation_limit": "This controlled corpus supports text-only deception classification; it cannot validate reviewer behavior, graph features, or platform deployment.",
+  "source_references": [
+    "Ott et al., ACL 2011, https://aclanthology.org/P11-1032/",
+    "Ott et al., NAACL 2013, https://aclanthology.org/N13-1053/"
+  ]
+}

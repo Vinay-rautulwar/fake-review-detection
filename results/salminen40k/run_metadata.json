@@ -1,0 +1,40 @@
+{
+  "dataset_file": "data\\datasets\\fake reviews dataset.csv",
+  "dataset_sha256": "ea03422988824bc917b5f7217e3867e27b597c647d5261adfae73cd7a85e1e1a",
+  "primary_source_reference": "Salminen et al., Journal of Retailing and Consumer Services 64 (2022), article 102771, DOI 10.1016/j.jretconser.2021.102771",
+  "primary_source_url": "https://doi.org/10.1016/j.jretconser.2021.102771",
+  "task": "GPT-2 computer-generated review (CG) versus original Amazon review (OR); not a verified human-fraud label",
+  "source_article_reports": "40,000 records (20,000 generated and 20,000 original); generated reviews use a fine-tuned GPT-2 continuation from the first five words and are length-matched by target buckets.",
+  "local_mirror_rows_before_deduplication": 40432,
+  "rows_after_exact_normalized_text_deduplication": 40405,
+  "exact_duplicates_removed": 27,
+  "cross_label_exact_duplicate_groups": 0,
+  "label_counts_after_deduplication": {
+    "OR": 20215,
+    "CG": 20190
+  },
+  "category_count": 10,
+  "category_counts_equal_between_labels": false,
+  "five_token_prefix_overlap_unique_rate_cg": 0.032020212436836136,
+  "protocols": {
+    "stratified_random_5fold": "StratifiedKFold(shuffle=True, random_state=42); category overlap is allowed",
+    "heldout_category_5fold": "GroupKFold(5) by product category; test folds contain two categories absent from training"
+  },
+  "text_pipeline": "word TF-IDF, unigram+bigrams, min_df=2, max_features=30000, sublinear_tf=True; fit within training fold",
+  "models": [
+    "LogisticRegression(C=1,class_weight=balanced,max_iter=2000)",
+    "LinearSVC(C=1,class_weight=balanced)",
+    "MultinomialNB(alpha=0.5)"
+  ],
+  "metrics": [
+    "accuracy",
+    "macro_f1",
+    "cg_precision",
+    "cg_recall",
+    "cg_f1",
+    "roc_auc",
+    "average_precision"
+  ],
+  "scikit_learn": "1.9.0",
+  "interpretation_limit": "The benchmark measures GPT-2-vs-Amazon-original source discrimination. OR reviews are presumed human-authored and may contain unknown fraud; this is not a direct test of human-written deceptive-review detection or current-generation LLMs."
+}

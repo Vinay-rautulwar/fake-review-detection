@@ -1,0 +1,52 @@
+{
+  "Logistic Regression (TF-IDF)":{
+    "Feature View":"Text",
+    "accuracy":0.7725,
+    "precision_macro":0.6739,
+    "recall_macro":0.7876,
+    "f1_macro":0.6893,
+    "f1_binary":0.5285,
+    "auc_roc":0.8763,
+    "auc_pr":0.5276
+  },
+  "Linear SVM (TF-IDF)":{
+    "Feature View":"Text",
+    "accuracy":0.85,
+    "precision_macro":0.7147,
+    "recall_macro":0.5948,
+    "f1_macro":0.617,
+    "f1_binary":0.3182,
+    "auc_roc":0.8683,
+    "auc_pr":0.519
+  },
+  "Naive Bayes (TF-IDF)":{
+    "Feature View":"Text",
+    "accuracy":0.8425,
+    "precision_macro":0.4212,
+    "recall_macro":0.5,
+    "f1_macro":0.4573,
+    "f1_binary":0.0,
+    "auc_roc":0.8103,
+    "auc_pr":0.3931
+  },
+  "Random Forest (Behavioral)":{
+    "Feature View":"Behavior",
+    "accuracy":0.8,
+    "precision_macro":0.654,
+    "recall_macro":0.6942,
+    "f1_macro":0.6684,
+    "f1_binary":0.4595,
+    "auc_roc":0.8538,
+    "auc_pr":0.4432
+  },
+  "Combined LR (Text + Behavior)":{
+    "Feature View":"Combined",
+    "accuracy":0.8075,
+    "precision_macro":0.7051,
+    "recall_macro":0.8277,
+    "f1_macro":0.7293,
+    "f1_binary":0.5838,
+    "auc_roc":0.899,
+    "auc_pr":0.581
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "dataset_file": "data\\datasets\\deceptive-opinion.csv",
+  "dataset_sha256": "e98f9f9497fb9e056b7f5870b2fd551e706dcca8de3fd8269f9f1f0de71e3a77",
+  "source_references": [
+    "Ott et al., ACL 2011, https://aclanthology.org/P11-1032/",
+    "Ott et al., NAACL 2013, https://aclanthology.org/N13-1053/"
+  ],
+  "rows_after_exact_normalized_text_deduplication": 1596,
+  "duplicates_removed": 4,
+  "design": "Five-fold GroupKFold by hotel. For each fold, train on one polarity from 16 hotels and test on either the same or opposite polarity from the four held-out hotels. Both labels are balanced within each polarity before deduplication.",
+  "models": [
+    "LogisticRegression(C=1,class_weight=balanced,max_iter=2000)",
+    "LinearSVC(C=1,class_weight=balanced)",
+    "MultinomialNB(alpha=0.5)"
+  ],
+  "text_pipeline": "Word TF-IDF, unigram and bigram, min_df=2, max_features=10000, sublinear_tf=True; fit on source-polarity training fold only.",
+  "limitations": "Exploratory secondary analysis on the same controlled corpus; sentiment polarity is a coarse domain shift, not external-domain or deployment validation. Fold SD is descriptive and not a confidence interval.",
+  "random_state": 42
+}

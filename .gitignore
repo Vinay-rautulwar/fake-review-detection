@@ -82,6 +82,8 @@ backend/models/deberta_fp32_final/*
 *.safetensors
 *.joblib
 *.pkl
+*.npy
+*.npz
 checkpoints/
 
 # Datasets & Local Data (keep directory structure tracked via .gitkeep and documentation)

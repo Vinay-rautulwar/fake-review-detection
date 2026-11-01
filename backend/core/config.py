@@ -73,8 +73,13 @@ class Settings(BaseSettings):
             if (local_extracted / "config.json").exists():
                 return local_extracted
             return self.BASE_DIR / "training" / "artifacts" / "deberta_text"
-        elif m_type == "deberta_fusion":
+        elif m_type in ["deberta_fusion", "hybrid_deberta_tabular", "hybrid"]:
+            hybrid_dir = self.BASE_DIR / "backend" / "models" / "hybrid_deberta_tabular"
+            if hybrid_dir.exists():
+                return hybrid_dir
             return self.BASE_DIR / "training" / "artifacts" / "deberta_fusion"
+        elif m_type == "fakeguard":
+            return self.BASE_DIR / "src" / "models"
         else:
             return self.BASE_DIR / "training" / "artifacts" / m_type
 

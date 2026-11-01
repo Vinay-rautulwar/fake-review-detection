@@ -1,0 +1,52 @@
+{
+  "dataset_file": "data\\datasets\\deceptive-opinion.csv",
+  "dataset_sha256": "e98f9f9497fb9e056b7f5870b2fd551e706dcca8de3fd8269f9f1f0de71e3a77",
+  "source_references": [
+    "Ott et al., ACL 2011, https://aclanthology.org/P11-1032/",
+    "Ott et al., NAACL 2013, https://aclanthology.org/N13-1053/"
+  ],
+  "task": "deceptive (1) versus truthful (0) hotel review text classification",
+  "raw_rows": 1600,
+  "rows_after_exact_normalized_text_deduplication": 1596,
+  "duplicates_removed": 4,
+  "groups": {
+    "name": "hotel",
+    "count": 20
+  },
+  "random_seed": 42,
+  "protocols": {
+    "stratified_random_5fold": "StratifiedKFold(shuffle=True, random_state=42); hotel overlap is allowed",
+    "heldout_hotel_5fold": "GroupKFold(5); no hotel appears in both train and test within a fold",
+    "inner_validation": "15% stratified split of each training fold; used for early stopping only"
+  },
+  "model": "single-layer bidirectional LSTM with packed sequences, 100-dimensional randomly initialized embedding, 64 hidden units per direction, dropout 0.5, binary cross-entropy, Adam learning rate 0.001",
+  "tokenization": {
+    "pattern": "[a-z0-9]+(?:'[a-z0-9]+)?",
+    "max_vocabulary": 20000,
+    "minimum_token_frequency": 2,
+    "maximum_sequence_length": 200,
+    "vocabulary_fit": "training subset only, independently within each fold"
+  },
+  "training": {
+    "batch_size": 32,
+    "max_epochs": 20,
+    "early_stopping_patience": 3,
+    "threshold": 0.5
+  },
+  "metrics": [
+    "accuracy",
+    "macro_f1",
+    "fake_precision",
+    "fake_recall",
+    "fake_f1",
+    "roc_auc",
+    "average_precision"
+  ],
+  "python": "3.12.10",
+  "scikit_learn": "1.9.0",
+  "pytorch": "2.15.0.dev20260823+cu130",
+  "device": "cuda",
+  "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "run_time_utc": "2026-10-29T14:56:16.523484+00:00",
+  "interpretation_limit": "Text-only small controlled corpus; does not validate behavioral/graph views or deployment; one seed and no pretrained language model."
+}

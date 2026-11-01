@@ -1,0 +1,44 @@
+==============================================================================
+ DEBERTA-V3: COMPREHENSIVE ERROR ANALYSIS & VALIDATION THRESHOLD BENCHMARK
+==============================================================================
+
+1. DATASET & LEAKAGE SAFEGUARDS
+- Validation Samples: 4,472 (Genuine: 2796, Fake: 1676)
+- Test Samples      : 4,474 (Genuine: 2797, Fake: 1677)
+- Decision threshold tuning protocol: STRICTLY tuned on Validation data only.
+- Test split was held out and evaluated only using fixed or validation-tuned thresholds.
+
+2. VALIDATION THRESHOLD SEARCH RESULTS
+- Validation ROC-AUC : 0.6732
+- Validation PR-AUC  : 0.6138
+- Best Threshold (Max F1): 0.12
+  * Validation F1 at 0.50      : 0.3608 (Precision: 0.8406, Recall: 0.2297)
+  * Validation F1 at 0.12 : 0.5919 (Precision: 0.4330, Recall: 0.9350)
+
+3. HELD-OUT TEST BENCHMARK COMPARISON
+Metric                    | Default (0.50)     | Validation-Tuned (0.12)  
+---------------------------------------------------------------------------
+Accuracy                  | 0.7143             | 0.5429                   
+Precision (Fake)          | 0.8674             | 0.4468                   
+Recall (Fake)             | 0.2809             | 0.9219                   
+F1-Score (Fake)           | 0.4243             | 0.6019                   
+ROC-AUC                   | 0.7152             | 0.7152                   
+PR-AUC                    | 0.6639             | 0.6639                   
+---------------------------------------------------------------------------
+Confusion Matrix (0.50)  : TN=2725, FP=72, FN=1206, TP=471
+Confusion Matrix (0.12): TN=883, FP=1914, FN=131, TP=1546
+
+4. IN-DEPTH ERROR ANALYSIS & ROOT CAUSES
+A. Root Cause of False Negatives (FN = 1,206 at 0.50):
+1. High-Confidence Genuine Bias: Because the training set is 62.5% genuine and unweighted cross-entropy
+   was used, the model predicts low fake probabilities (mean 0.231 for FN) on ambiguous text.
+2. Subtle Synthetic Phrasing: Many synthetic fake reviews mimic normal positive or neutral language
+   without blatant scam keywords.
+3. Pure Text Limitation: A review like 'I received this product and the quality was satisfactory' cannot
+   be determined as fake by language alone without checking if the reviewer is verified or posting abnormally.
+
+B. Impact of Threshold Tuning:
+Lowering the decision threshold from 0.50 to 0.12 (derived strictly from validation data)
+dramatically recovers missed fake reviews, raising test recall from 28.1% to 92.2%
+and lifting test F1-score from 0.4243 to 0.6019.
+==============================================================================

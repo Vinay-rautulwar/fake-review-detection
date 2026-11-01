@@ -1,0 +1,40 @@
+===========================================================================
+ DATASET QUALITY, DUPLICATES, SYNTHETIC PATTERNS & NOISE REPORT
+===========================================================================
+
+1. SPLIT SUMMARY & LEAKAGE CHECK
+Train samples       : 20,875 (70.0%)
+Validation samples  : 4,472 (15.0%)
+Test samples        : 4,474 (15.0%)
+Reviewer ID Overlap : Train-Val: 0, Train-Test: 0, Val-Test: 0 (0% overlap, strictly isolated)
+Exact Text Overlap  : Train-Val: 0, Train-Test: 0, Val-Test: 0
+
+2. SYNTHETIC PATTERNS & TEMPLATE ARTIFACTS
+Pure Fake Clusters    : 348 clusters
+Pure Genuine Clusters : 545 clusters
+Mixed-Label Clusters  : 296 clusters (Contradictory ground-truth labels for near-duplicate text >= 0.90 similarity)
+Impact: The presence of 296 mixed-label template clusters creates an irreducible Bayes error rate for text-only models.
+
+3. LINGUISTIC COMPARISON (TRAIN SPLIT)
+- Word Count Mean             : Fake = 37.3209 | Genuine = 33.3495
+- Word Count Median           : Fake = 34.0000 | Genuine = 31.0000
+- Char Length Mean            : Fake = 217.5171 | Genuine = 192.9885
+- Lexical Diversity (TTR)     : Fake = 0.8600 | Genuine = 0.8645
+- Exclamation Marks / Review  : Fake = 0.0374 | Genuine = 0.0395
+- Uppercase Ratio             : Fake = 0.0188 | Genuine = 0.0180
+
+4. TABULAR CORRELATIONS WITH FAKE LABEL
+- rating                    : r = +0.0011 (Fake Mean: 3.703, Genuine Mean: 3.701)
+- product_avg_rating        : r = +0.0016 (Fake Mean: 3.896, Genuine Mean: 3.895)
+- rating_discrepancy        : r = +0.0004 (Fake Mean: -0.193, Genuine Mean: -0.194)
+- abs_rating_discrepancy    : r = -0.0025 (Fake Mean: 0.760, Genuine Mean: 0.763)
+- verified_purchase         : r = -0.1879 (Fake Mean: 0.536, Genuine Mean: 0.721)
+- reviewer_review_count     : r = +0.0003 (Fake Mean: 7.321, Genuine Mean: 7.316)
+- days_since_previous_review: r = -0.0020 (Fake Mean: 274.302, Genuine Mean: 275.892)
+- reviewer_account_age_days : r = -0.0089 (Fake Mean: 705.502, Genuine Mean: 718.672)
+- reviewer_avg_rating       : r = -0.0068 (Fake Mean: 3.776, Genuine Mean: 3.783)
+- product_price             : r = +0.0176 (Fake Mean: 89.713, Genuine Mean: 86.516)
+- product_review_count      : r = -0.0014 (Fake Mean: 380.573, Genuine Mean: 382.457)
+
+Unverified Purchase Fake Rate: 49.93% vs. Verified Purchase Fake Rate: 30.84%
+===========================================================================

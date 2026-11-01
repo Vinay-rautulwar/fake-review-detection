@@ -1,0 +1,2 @@
+dataset,protocol,model,positive_label,folds,duplicates_removed,accuracy_mean,accuracy_std,macro_f1_mean,macro_f1_std,positive_precision_mean,positive_precision_std,positive_recall_mean,positive_recall_std,positive_f1_mean,positive_f1_std,roc_auc_mean,roc_auc_std,average_precision_mean,average_precision_std
+Ott deceptive-opinion hotel reviews,nested_group_5_outer_x_3_inner,LinearSVC; inner selection by macro-F1,deceptive,5,4,0.880309,0.024687,0.880190,0.024750,0.900443,0.022593,0.856250,0.043750,0.877296,0.026642,0.951651,0.014747,0.954254,0.014392

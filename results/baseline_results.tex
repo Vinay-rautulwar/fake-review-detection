@@ -1,0 +1,16 @@
+\begin{table}
+\caption{Baseline Model Performance Comparison on Fake Review Detection}
+\label{tab:baselines}
+\begin{tabular}{llrrrrrrr}
+\toprule
+ & Feature View & accuracy & precision_macro & recall_macro & f1_macro & f1_binary & auc_roc & auc_pr \\
+Model &  &  &  &  &  &  &  &  \\
+\midrule
+Logistic Regression (TF-IDF) & Text & 0.772500 & 0.673900 & 0.787600 & 0.689300 & 0.528500 & 0.876300 & 0.527600 \\
+Linear SVM (TF-IDF) & Text & 0.850000 & 0.714700 & 0.594800 & 0.617000 & 0.318200 & 0.868300 & 0.519000 \\
+Naive Bayes (TF-IDF) & Text & 0.842500 & 0.421200 & 0.500000 & 0.457300 & 0.000000 & 0.810300 & 0.393100 \\
+Random Forest (Behavioral) & Behavior & 0.800000 & 0.654000 & 0.694200 & 0.668400 & 0.459500 & 0.853800 & 0.443200 \\
+Combined LR (Text + Behavior) & Combined & 0.807500 & 0.705100 & 0.827700 & 0.729300 & 0.583800 & 0.899000 & 0.581000 \\
+\bottomrule
+\end{tabular}
+\end{table}

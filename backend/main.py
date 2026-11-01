@@ -110,13 +110,15 @@ async def root():
 async def health_check():
     """Reports model loading status, runtime device, and precision without exposing paths or secrets."""
     is_loaded = model_service.is_loaded
+    cfg_model = model_service.configured_model.lower()
+    is_multimodal = "fusion" in cfg_model or "hybrid" in cfg_model or "fakeguard" in cfg_model
     return {
         "status": "healthy" if is_loaded else "degraded",
         "model_loaded": is_loaded,
-        "model": "deberta-v3-base" if "deberta" in model_service.configured_model else model_service.configured_model,
+        "model": "deberta-v3-base" if "deberta" in cfg_model else model_service.configured_model,
         "device": model_service.device,
         "precision": "fp32",
-        "modality": "text-only",
+        "modality": "multimodal" if is_multimodal else "text-only",
     }
 
 
@@ -124,7 +126,7 @@ from backend.schemas.prediction import DirectPredictionResponse, PredictionReque
 from backend.services.model_service import ModelUnavailableException
 
 
-@app.post("/predict", response_model=DirectPredictionResponse, tags=["Inference"], summary="DeBERTa Text Classification Inference")
+@app.post("/predict", response_model=DirectPredictionResponse, tags=["Inference"], summary="Review Classification Inference")
 async def direct_predict(request: PredictionRequest):
     """Clean inference API returning prediction label, probabilities, and model name."""
     if not model_service.is_available:
@@ -133,13 +135,15 @@ async def direct_predict(request: PredictionRequest):
             detail=f"Model unavailable: {model_service.status_message}",
         )
     try:
-        res = model_service.predict(request.review_text)
+        meta = {k: v for k, v in request.model_dump().items() if k != "review_text" and v is not None}
+        res = model_service.predict(request.review_text, metadata=meta)
         return DirectPredictionResponse(
             prediction=res.predicted_label,
             label=res.label,
             fake_probability=res.fake_probability,
             genuine_probability=res.genuine_probability,
             model=res.model_name,
+            attention_weights=getattr(res, "attention_weights", None),
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

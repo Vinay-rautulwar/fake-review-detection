@@ -1,0 +1,2 @@
+protocol,model,folds,duplicates_removed,accuracy_mean,accuracy_std,macro_f1_mean,macro_f1_std,cg_precision_mean,cg_precision_std,cg_recall_mean,cg_recall_std,cg_f1_mean,cg_f1_std,roc_auc_mean,roc_auc_std,average_precision_mean,average_precision_std,best_iteration_mean
+heldout_category_5fold,TF-IDF MLP (64 hidden units),5,27,0.911570,0.017622,0.911340,0.017723,0.955512,0.012990,0.863122,0.026396,0.906881,0.019237,0.976961,0.007724,0.977748,0.007861,12.600000

@@ -1,0 +1,84 @@
+[
+  {
+    "name": "Ott deceptive-opinion hotel reviews",
+    "sha256": "e98f9f9497fb9e056b7f5870b2fd551e706dcca8de3fd8269f9f1f0de71e3a77",
+    "text_column": "text",
+    "group_column": "hotel",
+    "positive_label": "deceptive",
+    "duplicates_removed": 4,
+    "max_features": 10000,
+    "path": "data\\datasets\\deceptive-opinion.csv",
+    "scikit_learn": "1.9.0",
+    "outer_folds": 5,
+    "inner_folds": 3,
+    "C_values": [
+      0.1,
+      0.3,
+      1.0,
+      3.0,
+      10.0
+    ],
+    "class_weights": [
+      null,
+      "balanced"
+    ],
+    "ngram_ranges": [
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "vectorizer": {
+      "min_df": 2,
+      "max_features": 10000,
+      "sublinear_tf": true
+    },
+    "selection_metric": "macro_f1",
+    "warning": "Scores are still benchmark-specific; grouped nesting does not remove dataset source-label confounds or change label meaning."
+  },
+  {
+    "name": "Salminen-derived CG versus OR product reviews",
+    "sha256": "ea03422988824bc917b5f7217e3867e27b597c647d5261adfae73cd7a85e1e1a",
+    "text_column": "text_",
+    "group_column": "category",
+    "positive_label": "CG",
+    "duplicates_removed": 27,
+    "max_features": 30000,
+    "path": "data\\datasets\\fake reviews dataset.csv",
+    "scikit_learn": "1.9.0",
+    "outer_folds": 5,
+    "inner_folds": 3,
+    "C_values": [
+      0.1,
+      0.3,
+      1.0,
+      3.0,
+      10.0
+    ],
+    "class_weights": [
+      null,
+      "balanced"
+    ],
+    "ngram_ranges": [
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "vectorizer": {
+      "min_df": 2,
+      "max_features": 30000,
+      "sublinear_tf": true
+    },
+    "selection_metric": "macro_f1",
+    "warning": "Scores are still benchmark-specific; grouped nesting does not remove dataset source-label confounds or change label meaning."
+  }
+]

@@ -1,0 +1,43 @@
+# ==============================================================================
+# Unified Requirements for Fake Review Detection & FakeGuard Platform
+# Combines production backend, training pipelines, and multi-view research modules.
+# Authors: Vinay Rautulwar & Pramit Ghosh
+# ==============================================================================
+
+# Core Data Science & ML
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+lightgbm>=4.0.0
+pyyaml>=6.0
+tqdm>=4.65.0
+
+# Deep Learning (PyTorch & Transformers)
+torch>=2.0.0
+transformers>=4.35.0
+safetensors>=0.4.0
+accelerate>=0.24.0
+
+# Backend Service & API
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+pymongo>=4.6.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.9
+
+# Visualization & Reporting
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Testing
+pytest>=8.0.0
+httpx>=0.27.0
+mongomock>=4.1.0
+
+# Optional Graph & Explainability Extensions (Install if available in target environment)
+# torch-geometric>=2.3.0
+# shap>=0.42.0

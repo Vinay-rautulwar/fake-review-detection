@@ -1,0 +1,5 @@
+polarity,source,deceptive,count
+negative,MTurk,deceptive,400
+negative,Web,truthful,396
+positive,MTurk,deceptive,400
+positive,TripAdvisor,truthful,400

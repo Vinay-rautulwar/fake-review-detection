@@ -1,0 +1,2 @@
+dataset,protocol,model,positive_label,folds,duplicates_removed,accuracy_mean,accuracy_std,macro_f1_mean,macro_f1_std,positive_precision_mean,positive_precision_std,positive_recall_mean,positive_recall_std,positive_f1_mean,positive_f1_std,roc_auc_mean,roc_auc_std,average_precision_mean,average_precision_std
+Salminen-derived CG versus OR product reviews,nested_group_5_outer_x_3_inner,LinearSVC; inner selection by macro-F1,CG,5,27,0.915597,0.016742,0.915398,0.016844,0.956910,0.010580,0.870188,0.027142,0.911377,0.018387,0.978123,0.006703,0.978848,0.006942

@@ -1,0 +1,43 @@
+{
+  "dataset_sha256": "e98f9f9497fb9e056b7f5870b2fd551e706dcca8de3fd8269f9f1f0de71e3a77",
+  "raw_rows": 1600,
+  "rows_after_exact_normalized_text_deduplication": 1596,
+  "duplicates_removed": 4,
+  "source_label_counts": [
+    {
+      "polarity": "negative",
+      "source": "MTurk",
+      "deceptive": "deceptive",
+      "count": 400
+    },
+    {
+      "polarity": "negative",
+      "source": "Web",
+      "deceptive": "truthful",
+      "count": 396
+    },
+    {
+      "polarity": "positive",
+      "source": "MTurk",
+      "deceptive": "deceptive",
+      "count": 400
+    },
+    {
+      "polarity": "positive",
+      "source": "TripAdvisor",
+      "deceptive": "truthful",
+      "count": 400
+    }
+  ],
+  "every_source_maps_to_only_one_label": true,
+  "source_only_diagnostic_accuracy": 1.0,
+  "source_only_diagnostic_macro_f1": 1.0,
+  "length_only_model": "one feature log(1 + whitespace word count); StandardScaler and logistic regression fit on each training fold",
+  "length_only_protocol": "five-fold GroupKFold by hotel",
+  "length_only_accuracy_mean": 0.5112048510478895,
+  "length_only_accuracy_std": 0.04681275290569805,
+  "length_only_macro_f1_mean": 0.5107031272439659,
+  "length_only_macro_f1_std": 0.04672589284411304,
+  "interpretation": "The source-only number is an intentionally invalid shortcut diagnostic, not a valid model result. Length-only scores are a simple artifact baseline. Neither supports real-world fraud claims.",
+  "scikit_learn": "1.9.0"
+}
